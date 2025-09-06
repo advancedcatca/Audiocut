@@ -3,481 +3,142 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>本地音频剪裁工具｜iPad 兼容 + MP3 导出</title>
+  <title>本地音频剪裁｜分段加载 + 热力条 + 可调阈值</title>
   <style>
-    :root{--bg:#0f172a;--panel:#111827;--muted:#6b7280;--accent:#22c55e;--accent-2:#3b82f6;--text:#e5e7eb;--danger:#ef4444}
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0f1f);color:var(--text);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC","Noto Sans CJK SC","Microsoft Yahei",sans-serif}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC",sans-serif;background:#0b1020;color:#e5e7eb}
     .wrap{max-width:1100px;margin:24px auto;padding:16px}
-    .card{background:rgba(255,255,255,0.04);backdrop-filter: blur(6px);border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
-    .head{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
-    .head h1{font-size:18px;margin:0;font-weight:700}
-    .controls{display:flex;flex-wrap:wrap;gap:8px}
-    input[type=file]{display:none}
-    .btn{appearance:none;border:none;border-radius:12px;padding:10px 14px;color:#fff;background:#1f2937;cursor:pointer;transition:.2s ease;display:inline-flex;gap:8px;align-items:center}
-    .btn:hover{filter:brightness(1.15)}
-    .btn.primary{background:linear-gradient(180deg,var(--accent),#179d48)}
-    .btn.blue{background:linear-gradient(180deg,var(--accent-2),#2563eb)}
-    .btn.danger{background:linear-gradient(180deg,var(--danger),#b91c1c)}
-    .btn.ghost{background:transparent;outline:1px solid rgba(255,255,255,.15)}
-    .btn:disabled{opacity:.55;cursor:not-allowed}
-    .body{padding:16px}
-    .canvas-wrap{position:relative;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:#0a0f1c}
-    canvas{display:block;width:100%;height:180px}
-    .timeline{position:absolute;inset:0;pointer-events:none}
-    .info{display:grid;grid-template-columns: repeat(6,minmax(0,1fr));gap:12px;margin-top:12px}
-    .stat{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px}
-    .stat small{display:block;color:var(--muted);font-size:12px}
-    .stat b{font-size:16px}
-    .footer{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:14px}
-    .range{display:flex;gap:8px;align-items:center}
-    input[type=range]{width:200px}
-    .kbd{font:12px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cbd5e1;background:#0b1220;border:1px solid rgba(255,255,255,.1);padding:3px 6px;border-radius:8px}
-    .hint{color:#a1a1aa}
-    .progress{position:absolute;left:0;top:0;height:100%;width:0;background:rgba(56,189,248,.08);pointer-events:none}
-    .sel{position:absolute;top:0;height:100%;left:0;width:0;background:rgba(34,197,94,.18);outline:1px dashed rgba(34,197,94,.9);pointer-events:none}
-    .loading{display:none;gap:8px;align-items:center;color:#93c5fd}
-    .loading.on{display:inline-flex}
-    .dot{width:8px;height:8px;border-radius:50%;background:#60a5fa;animation:b 1s infinite}
-    .dot:nth-child(2){animation-delay:.15s}.dot:nth-child(3){animation-delay:.3s}
-    @keyframes b{0%{transform:translateY(0)}50%{transform:translateY(-4px)}100%{transform:translateY(0)}}
+    .card{background:rgba(255,255,255,0.05);border-radius:16px;padding:16px}
+    .head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;align-items:center}
+    .btn{padding:8px 12px;border:none;border-radius:8px;cursor:pointer;color:#fff;background:#374151}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    input[type=number]{width:90px;padding:6px;border-radius:6px;border:1px solid #334155;background:#0b1020;color:#e5e7eb}
+    canvas{display:block;width:100%;height:180px;background:#111827;border-radius:8px;margin-top:12px}
+    #heatmap{height:28px;margin-top:10px;background:#0f172a;border-radius:6px}
+    .sel{position:absolute;top:0;height:100%;background:rgba(34,197,94,.2);outline:1px dashed #22c55e;pointer-events:none}
   </style>
 </head>
 <body>
   <div class="wrap card">
     <div class="head">
-      <h1>本地音频剪裁工具 <span style="opacity:.6">｜iPad 兼容 & MP3 导出</span></h1>
-      <div class="controls">
-        <label class="btn blue" for="fileInput">📂 载入音频</label>
-        <input id="fileInput" type="file" accept="audio/*,.mp3,audio/mpeg,.m4a" />
-        <button id="playBtn" class="btn" disabled>▶️ 播放/暂停</button>
-        <button id="stopBtn" class="btn ghost" disabled>⏹️ 停止</button>
-        <button id="loopBtn" class="btn ghost" disabled>🔁 循环关</button>
-        <button id="fitBtn" class="btn ghost" disabled>🧭 适配波形</button>
-        <button id="zoomInBtn" class="btn ghost" disabled>➕ 放大</button>
-        <button id="zoomOutBtn" class="btn ghost" disabled>➖ 缩小</button>
-        <button id="resetSelBtn" class="btn ghost" disabled>🧹 清除选区</button>
-        <button id="exportWavBtn" class="btn primary" disabled>⬇️ 导出选段 (WAV)</button>
-        <button id="exportMp3Btn" class="btn ghost" disabled>🎧 导出选段 (MP3)</button>
-      </div>
+      <h1>本地音频剪裁｜分段加载</h1>
+      <input id="fileInput" type="file" accept="audio/*,.mp3,.m4a" />
     </div>
-    <div class="body">
-      <div class="canvas-wrap" id="canvasWrap">
-        <canvas id="wave"></canvas>
-        <div class="progress" id="playhead"></div>
-        <div class="sel" id="selection"></div>
-        <canvas class="timeline" id="grid"></canvas>
-      </div>
-      <div class="info">
-        <div class="stat"><small>文件名</small><b id="fileName">—</b></div>
-        <div class="stat"><small>采样率</small><b id="sampleRate">—</b></div>
-        <div class="stat"><small>声道数</small><b id="channels">—</b></div>
-        <div class="stat"><small>时长</small><b id="duration">—</b></div>
-        <div class="stat"><small>选择开始</small><b id="selStart">—</b></div>
-        <div class="stat"><small>选择结束</small><b id="selEnd">—</b></div>
-      </div>
-      <div class="footer">
-        <div>
-          <div class="hint">提示：拖动波形即可框选；<span class="kbd">Space</span> 播放/暂停，<span class="kbd">Ctrl/Cmd+E</span> 导出选段。</div>
-          <div id="loading" class="loading" style="margin-top:6px"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:6px">长音频/MP3 在 iPad 上将静音转码，耗时≈音频时长</span></div>
-        </div>
-        <div class="range">
-          <span>缩放：</span>
-          <input id="zoomRange" type="range" min="1" max="10" step="1" value="1" disabled />
-        </div>
-      </div>
+    <!-- 全局热力条（点击跳转） -->
+    <canvas id="heatmap"></canvas>
+
+    <div class="controls">
+      <button id="playBtn" class="btn" disabled>▶️ 播放/暂停</button>
+      <button id="exportWavBtn" class="btn" disabled>⬇️ 导出 WAV</button>
+      <button id="exportMp3Btn" class="btn" disabled>⬇️ 导出 MP3</button>
+      <label style="display:inline-flex;align-items:center;gap:6px">窗口(s)
+        <input id="winSec" type="number" min="10" max="1800" step="10" value="600">
+      </label>
+      <label style="display:inline-flex;align-items:center;gap:6px">阈值
+        <input id="thInput" type="number" min="0" max="0.2" step="0.005" value="0.08">
+      </label>
+      <label style="display:inline-flex;align-items:center;gap:6px">最短(s)
+        <input id="minDurInput" type="number" min="5" max="60" step="5" value="15">
+      </label>
+      <button id="prevBtn" class="btn" disabled>⏮️ 上一窗口</button>
+      <button id="nextBtn" class="btn" disabled>⏭️ 下一窗口</button>
+      <button id="prevTalkBtn" class="btn" disabled>🔉 上一段对话</button>
+      <button id="nextTalkBtn" class="btn" disabled>🔊 下一段对话</button>
     </div>
+
+    <div style="position:relative">
+      <canvas id="wave"></canvas>
+      <div id="selection" class="sel"></div>
+    </div>
+
+    <div id="info" style="margin-top:8px;color:#cbd5e1"></div>
   </div>
-
 <script>
-(() => {
-  const fileInput = document.getElementById('fileInput');
-  const waveCanvas = document.getElementById('wave');
-  const gridCanvas = document.getElementById('grid');
-  const wrap = document.getElementById('canvasWrap');
-  const playBtn = document.getElementById('playBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const loopBtn = document.getElementById('loopBtn');
-  const exportWavBtn = document.getElementById('exportWavBtn');
-  const exportMp3Btn = document.getElementById('exportMp3Btn');
-  const fitBtn = document.getElementById('fitBtn');
-  const zoomInBtn = document.getElementById('zoomInBtn');
-  const zoomOutBtn = document.getElementById('zoomOutBtn');
-  const resetSelBtn = document.getElementById('resetSelBtn');
-  const zoomRange = document.getElementById('zoomRange');
-  const playheadEl = document.getElementById('playhead');
-  const selEl = document.getElementById('selection');
-  const loading = document.getElementById('loading');
+const fileInput=document.getElementById('fileInput');
+const waveCanvas=document.getElementById('wave');
+const heatmapCanvas=document.getElementById('heatmap');
+const ctx=waveCanvas.getContext('2d');
+const playBtn=document.getElementById('playBtn');
+const exportWavBtn=document.getElementById('exportWavBtn');
+const exportMp3Btn=document.getElementById('exportMp3Btn');
+const prevBtn=document.getElementById('prevBtn');
+const nextBtn=document.getElementById('nextBtn');
+const prevTalkBtn=document.getElementById('prevTalkBtn');
+const nextTalkBtn=document.getElementById('nextTalkBtn');
+const winSecInput=document.getElementById('winSec');
+const thInput=document.getElementById('thInput');
+const minDurInput=document.getElementById('minDurInput');
+const selEl=document.getElementById('selection');
+const info=document.getElementById('info');
 
-  const fileNameEl = document.getElementById('fileName');
-  const srEl = document.getElementById('sampleRate');
-  const chEl = document.getElementById('channels');
-  const durEl = document.getElementById('duration');
-  const selStartEl = document.getElementById('selStart');
-  const selEndEl = document.getElementById('selEnd');
+let audioCtx, buffer, srcNode, peaks=[];
+let selection={active:false,start:0,end:0};
+let viewOffsetSec=0; // 当前窗口起点（秒）
+let winSec=600;      // 窗口长度（秒）
+let loudness=[], loudKnown=[]; // 5s/格
 
-  let audioCtx; // AudioContext
-  let buffer;   // AudioBuffer
-  let srcNode;  // BufferSourceNode
-  let playing = false;
-  let loop = false;
+function fmt(t){const m=Math.floor(t/60), s=Math.floor(t%60);return `${m}:${String(s).padStart(2,'0')}`}
+function resize(){
+  waveCanvas.width=waveCanvas.clientWidth*devicePixelRatio;
+  waveCanvas.height=180*devicePixelRatio;
+  heatmapCanvas.width=heatmapCanvas.clientWidth*devicePixelRatio;
+  heatmapCanvas.height=28*devicePixelRatio;
+  drawHeatmap(); draw();
+}
+window.addEventListener('resize',resize);resize();
 
-  let zoom = 1;      // 1..10
-  let peaks = [];    // downsampled peaks
+function draw(){
+  ctx.clearRect(0,0,waveCanvas.width,waveCanvas.height);
+  if(!peaks.length)return;
+  const mid=waveCanvas.height/2; ctx.strokeStyle='#60a5fa'; ctx.beginPath();
+  for(let i=0;i<peaks.length;i++){const p=peaks[i]; const x=i; const y1=mid+p[0]*mid; const y2=mid+p[1]*mid; ctx.moveTo(x,y1); ctx.lineTo(x,y2);} ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font=`${12*devicePixelRatio}px ui-monospace,monospace`; ctx.fillText(`${fmt(viewOffsetSec)} ~ ${fmt(viewOffsetSec+Number(waveCanvas.dataset.dur||0))}`,16,16);
+  if(selection.active){const dur=Number(waveCanvas.dataset.dur||0); const x1=(Math.max(0,selection.start-viewOffsetSec)/dur)*waveCanvas.width/devicePixelRatio; const x2=(Math.max(0,selection.end-viewOffsetSec)/dur)*waveCanvas.width/devicePixelRatio; selEl.style.left=Math.min(x1,x2)+'px'; selEl.style.width=Math.abs(x2-x1)+'px';} else selEl.style.width=0;
+}
 
-  let selection = {active:false, start:0, end:0}; // seconds
+function buildPeaks(viewDur=winSec,offset=viewOffsetSec){
+  if(!buffer)return; const sr=buffer.sampleRate; const startFrame=Math.floor(offset*sr); const endFrame=Math.floor(Math.min(buffer.duration,offset+viewDur)*sr); const step=Math.max(1, Math.floor((endFrame-startFrame)/waveCanvas.width)); const ch=buffer.getChannelData(0); peaks=[]; for(let i=0;i<waveCanvas.width;i++){const s=startFrame+i*step; let min=1,max=-1; for(let j=0;j<step;j++){const v=ch[s+j]||0; if(v<min)min=v; if(v>max)max=v;} peaks.push([min,max]);} waveCanvas.dataset.dur=viewDur; draw();}
 
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
+async function decode(file){ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); const arr=await file.arrayBuffer(); buffer=await audioCtx.decodeAudioData(arr); }
 
-  const LONG_FILE_BYTE_THRESHOLD = 80 * 1024 * 1024; // 80MB 以上走长音频模式
-  const LONG_FILE_DURATION_THRESHOLD = 2 * 3600; // >2小时
+fileInput.addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f)return; await decode(f);
+  viewOffsetSec=0; winSec=Number(winSecInput.value)||600;
+  info.textContent=`${f.name} ｜ 总长 ${fmt(buffer.duration)}`;
+  initHeatmapArrays(); await ensureLoudnessForRange(0, Math.min(buffer.duration, winSec*2));
+  buildPeaks(winSec,viewOffsetSec);
+  playBtn.disabled=false; exportWavBtn.disabled=false; exportMp3Btn.disabled=false; prevBtn.disabled=false; nextBtn.disabled=false; prevTalkBtn.disabled=false; nextTalkBtn.disabled=false; drawHeatmap();
+});
 
-  function fmt(t){
-    if (!isFinite(t)) return '—';
-    const sign = t < 0 ? '-' : '';
-    t = Math.max(0, t);
-    const m = Math.floor(t/60);
-    const s = Math.floor(t%60);
-    const ms = Math.floor((t*1000)%1000);
-    return `${sign}${m}:${String(s).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
-  }
+function initHeatmapArrays(){ const buckets=Math.ceil(buffer.duration/5); loudness=new Array(buckets).fill(0); loudKnown=new Array(buckets).fill(false); }
+async function ensureLoudnessForRange(startSec,endSec){ const sr=buffer.sampleRate; const ch=buffer.getChannelData(0); const b0=Math.max(0,Math.floor(startSec/5)); const b1=Math.min(loudness.length-1,Math.ceil(endSec/5)); for(let bi=b0; bi<=b1; bi++){ if(loudKnown[bi]) continue; const s=Math.floor(bi*5*sr); const e=Math.min(ch.length, Math.floor((bi+1)*5*sr)); let sum=0; for(let i=s;i<e;i++){ const v=ch[i]; sum+=v*v; } loudness[bi]=Math.sqrt(sum/Math.max(1,e-s)); loudKnown[bi]=true; } }
 
-  function enableUI(enabled){
-    [playBtn, stopBtn, loopBtn, exportWavBtn, exportMp3Btn, fitBtn, zoomInBtn, zoomOutBtn, resetSelBtn, zoomRange].forEach(b=>b.disabled=!enabled);
-  }
-  function showLoading(on){ loading.classList.toggle('on', !!on); }
+function drawHeatmap(){ const g=heatmapCanvas.getContext('2d'); g.clearRect(0,0,heatmapCanvas.width,heatmapCanvas.height); if(!buffer) return; const W=heatmapCanvas.width, H=heatmapCanvas.height; const n=loudness.length||1; for(let i=0;i<n;i++){ const x=i/n*W; const w=Math.ceil(W/n); const v=loudness[i]; const known=loudKnown[i]; const c=!known? 'rgba(148,163,184,.25)' : `hsl(${Math.max(0,200-200*Math.min(1,v/0.15))} 80% 50%)`; g.fillStyle=c; g.fillRect(x,0,w,H);} if(buffer){ const sx=(viewOffsetSec/buffer.duration)*W; const ex=((viewOffsetSec+Math.min(winSec, buffer.duration))/buffer.duration)*W; g.strokeStyle='#22c55e'; g.lineWidth=2; g.strokeRect(sx,1,Math.max(2,ex-sx),H-2);} }
 
-  function resize(){
-    const rect = wrap.getBoundingClientRect();
-    [waveCanvas, gridCanvas].forEach(cv=>{
-      cv.width = Math.floor(rect.width * dpr);
-      cv.height = Math.floor(180 * dpr);
-      cv.style.width = rect.width + 'px';
-      cv.style.height = '180px';
-    });
-    draw();
-  }
-  window.addEventListener('resize', resize);
+heatmapCanvas.addEventListener('click', async (e)=>{ if(!buffer) return; const rect=heatmapCanvas.getBoundingClientRect(); const ratio=(e.clientX-rect.left)/rect.width; const t=Math.max(0, Math.min(buffer.duration-1, ratio*buffer.duration)); viewOffsetSec=Math.max(0, Math.min(buffer.duration-Math.min(winSec,buffer.duration), t - winSec/2)); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec, viewOffsetSec); drawHeatmap(); });
 
-  // ===== iOS/Safari MP3 & 长音频兜底：失败或过大则用 <audio> + MediaRecorder 实时转码 =====
-  async function decodeArrayBufferWithFallback(arrBuf, ctx){
-    try{ return await ctx.decodeAudioData(arrBuf.slice(0)); }
-    catch(e1){
-      return await new Promise((resolve, reject)=>{
-        try{ ctx.decodeAudioData(arrBuf.slice(0), resolve, reject); }
-        catch(e2){ reject(e2); }
-      });
-    }
-  }
+prevBtn.addEventListener('click', async ()=>{ viewOffsetSec=Math.max(0,viewOffsetSec-winSec); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec,viewOffsetSec); drawHeatmap(); });
+nextBtn.addEventListener('click', async ()=>{ viewOffsetSec=Math.min(Math.max(0,buffer.duration-winSec),viewOffsetSec+winSec); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec,viewOffsetSec); drawHeatmap(); });
 
-  async function transcodeViaMediaRecorderAndBuildPeaks(file, ctx){
-    if (!('MediaRecorder' in window)) throw new Error('此浏览器不支持 MediaRecorder 兜底。');
-    showLoading(true);
-    const audioEl = new Audio(); audioEl.preload='auto'; audioEl.muted = true;
-    const url = URL.createObjectURL(file); audioEl.src = url;
+function findTalk(startBucket, dir){ const step=dir>0?1:-1; const minDurSec=Math.max(5, Math.min(60, Number(minDurInput.value)||15)); const needBuckets=Math.ceil(minDurSec/5); const th=Math.max(0, Math.min(0.2, Number(thInput.value)||0.08)); for(let i=startBucket; i>=0 && i<loudness.length; i+=step){ let ok=true; for(let k=0;k<needBuckets;k++){ const idx=i+k*step; if(idx<0||idx>=loudness.length){ ok=false; break; } if(!loudKnown[idx]){ ok=false; break; } if(loudness[idx] < th){ ok=false; break; } } if(ok) return i; } return -1; }
 
-    const dest = ctx.createMediaStreamDestination();
-    const src = ctx.createMediaElementSource(audioEl);
-    src.connect(dest); src.connect(ctx.destination);
+prevTalkBtn.addEventListener('click', async ()=>{ const curBucket=Math.floor(viewOffsetSec/5); // 确保邻域已计算
+ await ensureLoudnessForRange(Math.max(0,(curBucket-60)*5), (curBucket+5)*5);
+ const idx=findTalk(curBucket-1,-1); if(idx>=0){ viewOffsetSec=Math.max(0, idx*5); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec,viewOffsetSec); drawHeatmap(); } });
+nextTalkBtn.addEventListener('click', async ()=>{ const curBucket=Math.floor((viewOffsetSec+winSec)/5); await ensureLoudnessForRange(curBucket*5, Math.min(buffer.duration,(curBucket+60)*5)); const idx=findTalk(curBucket+1,1); if(idx>=0){ viewOffsetSec=Math.min(Math.max(0, buffer.duration-winSec), idx*5); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec,viewOffsetSec); drawHeatmap(); } });
 
-    // 采样波形：通过 AnalyserNode 实时采样，累积成低分辨率峰值（避免一次性解码占内存）
-    const analyser = ctx.createAnalyser(); analyser.fftSize = 1024; src.connect(analyser);
-    const timeData = new Float32Array(analyser.fftSize);
+winSecInput.addEventListener('change', async ()=>{ winSec=Math.max(10,Math.min(1800,Number(winSecInput.value)||600)); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec,viewOffsetSec); drawHeatmap(); });
 
-    let mime = '';
-    try{
-      if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/mp4')) mime='audio/mp4';
-      else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm')) mime='audio/webm';
-    }catch(_){ mime=''; }
+// 播放（仅当前窗口）
+playBtn.addEventListener('click',()=>{ if(!buffer)return; if(srcNode){ try{srcNode.stop();}catch{} try{srcNode.disconnect();}catch{} srcNode=null; playBtn.textContent='▶️ 播放/暂停'; return; } if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); srcNode=audioCtx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(audioCtx.destination); srcNode.start(0, viewOffsetSec, Math.min(winSec, buffer.duration-viewOffsetSec)); playBtn.textContent='⏸️ 暂停'; srcNode.onended=()=>{ srcNode=null; playBtn.textContent='▶️ 播放/暂停'; }; });
 
-    const chunks=[]; const rec = mime? new MediaRecorder(dest.stream,{mimeType:mime}) : new MediaRecorder(dest.stream);
-    rec.ondataavailable = e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+function getWindowData(){ const a=viewOffsetSec; const b=Math.min(buffer.duration, viewOffsetSec + (Number(waveCanvas.dataset.dur)||winSec)); const sr=buffer.sampleRate; const startFrame=Math.floor(a*sr); const endFrame=Math.floor(b*sr); const ch=buffer.getChannelData(0).subarray(startFrame,endFrame); return {channels:[ch],sampleRate:sr,start:a,end:b}; }
 
-    if (ctx.state==='suspended'){ try{ await ctx.resume(); }catch(_){} }
+function wavEncode({channels,sampleRate}){ const numFrames=channels[0].length; const buf=new ArrayBuffer(44+numFrames*2); const view=new DataView(buf); function ws(o,s){ for(let i=0;i<s.length;i++) view.setUint8(o+i,s.charCodeAt(i)); } ws(0,'RIFF'); view.setUint32(4,36+numFrames*2,true); ws(8,'WAVE'); ws(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true); view.setUint32(24,sampleRate,true); view.setUint32(28,sampleRate*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true); ws(36,'data'); view.setUint32(40,numFrames*2,true); let offset=44; for(let i=0;i<numFrames;i++){ let s=channels[0][i]; s=Math.max(-1,Math.min(1,s)); view.setInt16(offset, s<0?s*0x8000:s*0x7FFF, true); offset+=2; } return new Blob([buf],{type:'audio/wav'}); }
 
-    // 为了预先知道 duration（有些容器需要 metadata loaded）
-    await new Promise(res=>{ const f=()=>{audioEl.removeEventListener('loadedmetadata', f); res();}; audioEl.addEventListener('loadedmetadata', f); });
-    const totalDur = isFinite(audioEl.duration)? audioEl.duration : 0;
+exportWavBtn.addEventListener('click',()=>{ const data=getWindowData(); const blob=wavEncode(data); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`window_${fmt(data.start)}-${fmt(data.end)}.wav`; a.click(); });
 
-    // 初始化峰值容器（按像素列）
-    const width = Math.max(600, Math.floor(waveCanvas.getBoundingClientRect().width * dpr));
-    peaks = new Array(width).fill(0).map(()=>[1,-1]);
-
-    const startTime = performance.now();
-    rec.start();
-    await audioEl.play().catch(()=>{});
-
-    // 播放过程中定时抽样，填充 peaks
-    let rafId;
-    await new Promise(resolve=>{
-      const tick = ()=>{
-        analyser.getFloatTimeDomainData(timeData);
-        // 将当前时间映射到像素列（如果拿不到 duration，就按已采样进度均匀推进）
-        const cur = audioEl.currentTime;
-        const ratio = totalDur>0? (cur/totalDur) : Math.min(1, (performance.now()-startTime)/(1000*60*60*6)); // 最多6小时估计
-        const x = Math.min(width-1, Math.max(0, Math.floor(ratio*width)));
-        let min=1, max=-1;
-        for (let i=0;i<timeData.length;i++){ const v=timeData[i]; if(v<min)min=v; if(v>max)max=v; }
-        if (min<peaks[x][0]) peaks[x][0]=min; if (max>peaks[x][1]) peaks[x][1]=max;
-        draw();
-        rafId = requestAnimationFrame(tick);
-      };
-      rafId = requestAnimationFrame(tick);
-      const onEnded = ()=>{ cancelAnimationFrame(rafId); rec.stop(); audioEl.removeEventListener('ended', onEnded); resolve(); };
-      audioEl.addEventListener('ended', onEnded);
-      if (!isFinite(totalDur) || totalDur<=0){ setTimeout(onEnded, 10*60*1000); }
-    });
-
-    const out = new Blob(chunks, {type: mime||'application/octet-stream'});
-    const arr = await out.arrayBuffer();
-    URL.revokeObjectURL(url);
-    showLoading(false);
-    return await decodeArrayBufferWithFallback(arr, ctx);
-  }
-
-  async function decodeWithFallbackSmart(file, hintDuration){
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state==='suspended'){ try{ await audioCtx.resume(); }catch(_){} }
-
-    const longBySize = file.size >= LONG_FILE_BYTE_THRESHOLD;
-    const longByDur = hintDuration && hintDuration >= LONG_FILE_DURATION_THRESHOLD;
-
-    // 先尝试直接解码（小文件/短时长）
-    if (!longBySize && !longByDur){
-      try{ const arr = await file.arrayBuffer(); return await decodeArrayBufferWithFallback(arr, audioCtx); }
-      catch(e){ /* 失败再走转码 */ }
-    }
-    // 长音频或解码失败 → 实时转码并边录边构建波形
-    return await transcodeViaMediaRecorderAndBuildPeaks(file, audioCtx);
-  }
-
-  async function loadFile(file){
-    stop();
-    try{
-      showLoading(false);
-      // 先拿到大概时长（如果容器能读）
-      let hintDuration = 0;
-      try{
-        hintDuration = await new Promise(res=>{
-          const a=new Audio(); a.preload='metadata'; a.src=URL.createObjectURL(file);
-          a.onloadedmetadata = ()=>{ res(isFinite(a.duration)? a.duration:0); URL.revokeObjectURL(a.src); };
-          a.onerror = ()=>{ res(0); try{URL.revokeObjectURL(a.src);}catch{} };
-        });
-      }catch{}
-
-      buffer = await decodeWithFallbackSmart(file, hintDuration);
-
-      fileNameEl.textContent = file.name || '未命名音频';
-      srEl.textContent = buffer.sampleRate + ' Hz';
-      chEl.textContent = buffer.numberOfChannels;
-      durEl.textContent = fmt(buffer.duration);
-
-      if (!peaks.length) buildPeaks(); // 若不是边录生成，就常规构建
-
-      selection = {active:false,start:0,end:0};
-      updateSelInfo();
-      enableUI(true);
-      resize();
-    }catch(e){
-      console.error(e);
-      showLoading(false);
-      alert((e && e.message) ? e.message : '加载失败：该音频在此设备上解码受限。可尝试先转为 WAV 再导入。');
-      enableUI(false);
-    }
-  }
-
-  function buildPeaks(){
-    if (!buffer){ peaks=[]; return; }
-    const width = waveCanvas.width; // device px
-    const samplesPerBucket = Math.max(1, Math.floor(buffer.length / width));
-    const ch0 = buffer.getChannelData(0);
-    const ch1 = buffer.numberOfChannels>1 ? buffer.getChannelData(1) : null;
-    peaks = new Array(width);
-    for (let i=0;i<width;i++){
-      const start = i*samplesPerBucket;
-      const end = Math.min((i+1)*samplesPerBucket, ch0.length);
-      let min=1, max=-1;
-      for (let j=start;j<end;j++){
-        const vL = ch0[j];
-        const vR = ch1 ? ch1[j] : vL;
-        const v = (vL + vR) * 0.5; // average stereo
-        if (v<min) min=v; if (v>max) max=v;
-      }
-      peaks[i] = [min, max];
-    }
-  }
-
-  function secToX(sec){ const total = buffer?buffer.duration:1; const rectW = waveCanvas.width; return (sec/total) * rectW; }
-  function xToSec(x){ const total = buffer?buffer.duration:1; const rectW = waveCanvas.width; return (x/rectW) * total; }
-
-  function draw(){
-    const ctx = waveCanvas.getContext('2d');
-    ctx.clearRect(0,0,waveCanvas.width,waveCanvas.height);
-    ctx.fillStyle = '#0b1020'; ctx.fillRect(0,0,waveCanvas.width,waveCanvas.height);
-
-    if (!peaks.length){ drawGrid(); return; }
-
-    const mid = waveCanvas.height/2;
-    ctx.strokeStyle = 'rgba(148,163,184,.9)';
-    ctx.beginPath();
-    for (let x=0;x<peaks.length;x+=Math.max(1,Math.floor(2/zoom))){
-      const p = peaks[x];
-      const y1 = mid + p[0]*mid*0.95;
-      const y2 = mid + p[1]*mid*0.95;
-      ctx.moveTo(x+0.5, y1);
-      ctx.lineTo(x+0.5, y2);
-    }
-    ctx.stroke();
-
-    drawGrid();
-    updateSelectionOverlay();
-  }
-
-  function drawGrid(){
-    if (!buffer) return; // 没有时长就不画网格
-    const g = gridCanvas.getContext('2d');
-    g.clearRect(0,0,gridCanvas.width,gridCanvas.height);
-    const dur = buffer.duration; const w = gridCanvas.width; const h = gridCanvas.height;
-    g.fillStyle = 'rgba(255,255,255,.03)';
-    for (let i=0;i<5;i++){ const y=(i/4)*h; g.fillRect(0,y,w,1); }
-    const pxPerSec = w/dur; const major = Math.max(1, Math.round(100/pxPerSec));
-    g.font = `${12*dpr}px ui-monospace,monospace`; g.textBaseline='top'; g.fillStyle='rgba(200,200,220,.8)';
-    g.strokeStyle='rgba(255,255,255,.12)';
-    for (let s=0; s<=dur; s+=major){ const x = Math.floor(s*pxPerSec)+0.5; g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); const label = fmt(s).replace(/^[^:]+:/,''); g.fillText(label, x+4, 4); }
-  }
-
-  function updateSelectionOverlay(){
-    if (!buffer || !selection.active){ selEl.style.width='0px'; return; }
-    const x1 = secToX(selection.start)/dpr; const x2 = secToX(selection.end)/dpr;
-    selEl.style.left = Math.min(x1,x2)+ 'px'; selEl.style.width = Math.max(1, Math.abs(x2-x1)) + 'px';
-  }
-
-  function updateSelInfo(){
-    selStartEl.textContent = selection.active? fmt(Math.min(selection.start, selection.end)) : '—';
-    selEndEl.textContent   = selection.active? fmt(Math.max(selection.start, selection.end)) : '—';
-    exportWavBtn.disabled = !selection.active || !buffer;
-    exportMp3Btn.disabled = !selection.active || !buffer;
-    resetSelBtn.disabled = !selection.active;
-  }
-
-  // Mouse/touch selection
-  let dragging = false;
-  function onDown(clientX){ if (!buffer) return; dragging=true; selection.active=true; const rect = waveCanvas.getBoundingClientRect(); const x=(clientX-rect.left)*dpr; selection.start = xToSec(x); selection.end=selection.start; updateSelInfo(); draw(); }
-  function onMove(clientX){ if (!dragging||!buffer) return; const rect = waveCanvas.getBoundingClientRect(); const x=(clientX-rect.left)*dpr; selection.end=Math.min(buffer.duration, Math.max(0, xToSec(x))); updateSelInfo(); draw(); }
-  function onUp(){ dragging=false; }
-  waveCanvas.addEventListener('mousedown', e=> onDown(e.clientX));
-  window.addEventListener('mousemove', e=> onMove(e.clientX));
-  window.addEventListener('mouseup', onUp);
-  waveCanvas.addEventListener('touchstart', e=>{ if(e.touches[0]) onDown(e.touches[0].clientX);});
-  window.addEventListener('touchmove', e=>{ if(e.touches[0]) onMove(e.touches[0].clientX);});
-  window.addEventListener('touchend', onUp);
-
-  // Playback
-  let playStartTime = 0; let playStartOffset = 0;
-  function startNode(offsetSec, durationSec){
-    stop();
-    if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-    srcNode = audioCtx.createBufferSource(); srcNode.buffer = buffer; srcNode.connect(audioCtx.destination); srcNode.loop = loop && selection.active;
-    if (srcNode.loop){ const a=Math.min(selection.start, selection.end); const b=Math.max(selection.start, selection.end); srcNode.loopStart=a; srcNode.loopEnd=b; srcNode.start(0,a); playStartOffset=a; }
-    else { srcNode.start(0, offsetSec||0, durationSec||undefined); playStartOffset = offsetSec||0; }
-    playStartTime = audioCtx.currentTime; playing = true; playBtn.textContent='⏸️ 暂停'; rafPlayhead();
-    srcNode.onended=()=>{ if(!srcNode) return; if(!srcNode.loop){ playing=false; playBtn.textContent='▶️ 播放/暂停'; updatePlayhead(0);} };
-  }
-  function play(){ if(!buffer) return; if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(playing){ pause(); return; } if (selection.active){ const a=Math.min(selection.start, selection.end); const b=Math.max(selection.start, selection.end); startNode(a, b-a);} else { startNode(0);} }
-  function pause(){ if(!playing) return; const elapsed = audioCtx.currentTime - playStartTime; playStartOffset += elapsed; stop(true); playing=false; playBtn.textContent='▶️ 播放/暂停'; }
-  function stop(keepOffset=false){ if(srcNode){ try{srcNode.stop();}catch(_){} try{srcNode.disconnect();}catch(_){} } srcNode=null; if(!keepOffset){ playStartOffset=0;} playBtn.textContent='▶️ 播放/暂停'; playing=false; updatePlayhead(0); }
-  function updatePlayhead(forcedX){ if(!buffer){ playheadEl.style.width='0px'; return; } let curSec; if(playing){ const elapsed=audioCtx.currentTime - playStartTime; curSec=(playStartOffset+elapsed)%buffer.duration; } else { curSec= selection.active? Math.min(selection.end, buffer.duration):0; } const x = forcedX || (secToX(curSec)/dpr); playheadEl.style.width = Math.max(0, Math.min(x, waveCanvas.clientWidth)) + 'px'; }
-  function rafPlayhead(){ if(!playing) return; updatePlayhead(); requestAnimationFrame(rafPlayhead); }
-
-  // ===== 导出：WAV & MP3 =====
-  function getSelectionFloat32(){
-    if (!buffer || !selection.active) return null;
-    const a = Math.max(0, Math.min(selection.start, selection.end));
-    const b = Math.max(0, Math.min(buffer.duration, Math.max(selection.start, selection.end)));
-    const sr = buffer.sampleRate; const startFrame = Math.floor(a*sr); const endFrame = Math.floor(b*sr); const frameCount = Math.max(0, endFrame - startFrame); const ch = buffer.numberOfChannels;
-    const channels=[]; for (let c=0;c<ch;c++){ const src = buffer.getChannelData(c); const slice = new Float32Array(frameCount); slice.set(src.subarray(startFrame, endFrame)); channels.push(slice);}    
-    return {channels, sampleRate: sr};
-  }
-
-  function exportSelectionWav(){
-    const data = getSelectionFloat32(); if(!data) return;
-    const wav = encodeWAVFromFloat32(data.channels, data.sampleRate);
-    const blob = new Blob([wav], {type:'audio/wav'});
-    triggerDownload(blob, '.wav');
-  }
-
-  async function exportSelectionMp3(){
-    const data = getSelectionFloat32(); if(!data) return;
-    // 动态加载 lamejs（仅在第一次导出 MP3 时加载）
-    if (!window.lamejs){
-      await new Promise((res, rej)=>{
-        const s=document.createElement('script');
-        s.src='https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';
-        s.onload=res; s.onerror=()=>rej(new Error('无法加载 MP3 编码库（lamejs）。'));
-        document.head.appendChild(s);
-      });
-    }
-    const {channels, sampleRate} = data;
-    // lamejs 只能编码 1 或 2 通道，若>2，降到立体声
-    const ch = Math.min(2, channels.length);
-    const left = channels[0];
-    const right = ch>1? channels[1] : channels[0];
-
-    // 将 Float32 [-1,1] 转 Int16
-    function f32ToS16PCM(f){ const out = new Int16Array(f.length); for (let i=0;i<f.length;i++){ let s = Math.max(-1, Math.min(1, f[i])); out[i] = s<0 ? s*0x8000 : s*0x7FFF; } return out; }
-    const leftS16 = f32ToS16PCM(left);
-    const rightS16 = f32ToS16PCM(right);
-
-    const kbps = 128; // 码率
-    const encoder = new lamejs.Mp3Encoder(ch, sampleRate, kbps);
-    const blockSize = 1152; // MP3 帧大小
-    const mp3Data = [];
-    for (let i=0;i<leftS16.length; i+=blockSize){
-      const l = leftS16.subarray(i, i+blockSize);
-      const r = rightS16.subarray(i, i+blockSize);
-      const chunk = ch===2? encoder.encodeBuffer(l, r) : encoder.encodeBuffer(l);
-      if (chunk.length) mp3Data.push(chunk);
-    }
-    const end = encoder.flush(); if (end.length) mp3Data.push(end);
-    const blob = new Blob(mp3Data, {type:'audio/mpeg'});
-    triggerDownload(blob, '.mp3');
-  }
-
-  function triggerDownload(blob, ext){
-    const url = URL.createObjectURL(blob);
-    const base = (document.getElementById('fileName').textContent||'audio').replace(/\.[^/.]+$/,'');
-    const a = Math.max(0, Math.min(selection.start, selection.end));
-    const b = Math.max(0, Math.min(buffer.duration, Math.max(selection.start, selection.end)));
-    const name = `${base}_${fmt(a).replace(/[:.]/g,'')}-${fmt(b).replace(/[:.]/g,'')}${ext}`;
-    const aEl = document.createElement('a'); aEl.href=url; aEl.download=name; aEl.click(); setTimeout(()=>URL.revokeObjectURL(url),10000);
-  }
-
-  function encodeWAVFromFloat32(channels, sampleRate){
-    const numChannels = channels.length; const numFrames = channels[0].length; const bytesPerSample = 2; const blockAlign = numChannels * bytesPerSample; const byteRate = sampleRate * blockAlign; const dataSize = numFrames * blockAlign; const buf = new ArrayBuffer(44 + dataSize); const view = new DataView(buf);
-    function wstr(off,str){ for(let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); }
-    wstr(0,'RIFF'); view.setUint32(4, 36 + dataSize, true); wstr(8,'WAVE'); wstr(12,'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true); view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true); wstr(36,'data'); view.setUint32(40, dataSize, true);
-    let offset=44; for (let i=0;i<numFrames;i++){ for (let ch=0; ch<numChannels; ch++){ let s = channels[ch][i]; s = Math.max(-1, Math.min(1, s)); const v = s < 0 ? s * 0x8000 : s * 0x7FFF; view.setInt16(offset, v, true); offset+=2; } }
-    return view;
-  }
-
-  // Events
-  fileInput.addEventListener('change', async e=>{ const f = e.target.files && e.target.files[0]; if (!f) return; await loadFile(f); });
-  playBtn.addEventListener('click', play);
-  stopBtn.addEventListener('click', ()=> stop());
-  exportWavBtn.addEventListener('click', exportSelectionWav);
-  exportMp3Btn.addEventListener('click', exportSelectionMp3);
-  loopBtn.addEventListener('click', ()=>{ loop = !loop; loopBtn.textContent = loop? '🔁 循环开' : '🔁 循环关'; if (srcNode) { srcNode.loop = loop && selection.active; } });
-  fitBtn.addEventListener('click', ()=>{ zoom = 1; zoomRange.value=1; draw(); });
-  zoomInBtn.addEventListener('click', ()=>{ zoom = Math.min(10, zoom+1); zoomRange.value=zoom; draw(); });
-  zoomOutBtn.addEventListener('click', ()=>{ zoom = Math.max(1, zoom-1); zoomRange.value=zoom; draw(); });
-  resetSelBtn.addEventListener('click', ()=>{ selection={active:false,start:0,end:0}; updateSelInfo(); draw(); });
-  zoomRange.addEventListener('input', e=>{ zoom = +e.target.value; draw(); });
-  window.addEventListener('keydown', e=>{ if (e.code==='Space'){ e.preventDefault(); play(); } if ((e.ctrlKey||e.metaKey) && (e.key==='e'||e.key==='E')){ e.preventDefault(); exportSelectionWav(); } });
-
-  // Init
-  enableUI(false); resize();
-})();
+exportMp3Btn.addEventListener('click',async()=>{ const data=getWindowData(); if(!window.lamejs){ await new Promise(res=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js'; s.onload=res; document.head.appendChild(s); }); } const enc=new lamejs.Mp3Encoder(1,data.sampleRate,128); const s16=new Int16Array(data.channels[0].length); for(let i=0;i<s16.length;i++){ let v=Math.max(-1,Math.min(1,data.channels[0][i])); s16[i]=v<0?v*0x8000:v*0x7FFF; } const block=1152,mp3=[]; for(let i=0;i<s16.length;i+=block){ const chunk=enc.encodeBuffer(s16.subarray(i,i+block)); if(chunk.length) mp3.push(chunk); } const end=enc.flush(); if(end.length) mp3.push(end); const blob=new Blob(mp3,{type:'audio/mpeg'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`window_${fmt(data.start)}-${fmt(data.end)}.mp3`; a.click(); });
 </script>
 </body>
 </html>
