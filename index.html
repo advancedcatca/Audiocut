@@ -1,639 +1,516 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>音频剪裁工具</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .container {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 40px;
-            max-width: 900px;
-            width: 100%;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-
-        h1 {
-            color: #333;
-            margin-bottom: 30px;
-            text-align: center;
-            font-size: 2.5em;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .upload-area {
-            border: 3px dashed #667eea;
-            border-radius: 15px;
-            padding: 40px;
-            text-align: center;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            background: rgba(102, 126, 234, 0.05);
-            margin-bottom: 30px;
-        }
-
-        .upload-area:hover {
-            border-color: #764ba2;
-            background: rgba(102, 126, 234, 0.1);
-            transform: translateY(-2px);
-        }
-
-        .upload-area.dragover {
-            background: rgba(102, 126, 234, 0.2);
-            border-color: #764ba2;
-        }
-
-        input[type="file"] {
-            display: none;
-        }
-
-        .upload-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-
-        .waveform-container {
-            position: relative;
-            margin: 30px 0;
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            display: none;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .waveform-container.active {
-            display: block;
-        }
-
-        #waveform {
-            width: 100%;
-            height: 150px;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .controls {
-            display: flex;
-            gap: 15px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        button {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #5a6268;
-            transform: translateY(-2px);
-        }
-
-        .btn-success {
-            background: #28a745;
-            color: white;
-        }
-
-        .btn-success:hover {
-            background: #218838;
-            transform: translateY(-2px);
-        }
-
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none !important;
-        }
-
-        .time-display {
-            display: flex;
-            gap: 30px;
-            margin: 20px 0;
-            padding: 20px;
-            background: rgba(102, 126, 234, 0.1);
-            border-radius: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .time-info {
-            text-align: center;
-        }
-
-        .time-label {
-            font-size: 12px;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 5px;
-        }
-
-        .time-value {
-            font-size: 20px;
-            font-weight: bold;
-            color: #333;
-            font-family: 'Courier New', monospace;
-        }
-
-        .selection-overlay {
-            position: absolute;
-            top: 0;
-            height: 100%;
-            background: rgba(102, 126, 234, 0.3);
-            pointer-events: none;
-            border-left: 2px solid #667eea;
-            border-right: 2px solid #667eea;
-        }
-
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .file-info {
-            background: rgba(102, 126, 234, 0.1);
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        .file-info.active {
-            display: block;
-        }
-
-        .file-name {
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 5px;
-        }
-
-        .file-details {
-            color: #666;
-            font-size: 14px;
-        }
-
-        @media (max-width: 600px) {
-            .container {
-                padding: 20px;
-            }
-
-            h1 {
-                font-size: 1.8em;
-            }
-
-            .controls {
-                flex-direction: column;
-            }
-
-            button {
-                width: 100%;
-                justify-content: center;
-            }
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>本地音频剪裁工具｜波形选段导出</title>
+  <style>
+    :root{
+      --bg:#0f172a;--panel:#111827;--muted:#6b7280;--accent:#22c55e;--accent-2:#3b82f6;--text:#e5e7eb;--danger:#ef4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0f1f);color:var(--text);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC","Noto Sans CJK SC","Microsoft Yahei",sans-serif}
+    .wrap{max-width:1100px;margin:24px auto;padding:16px}
+    .card{background:rgba(255,255,255,0.04);backdrop-filter: blur(6px);border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .head{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+    .head h1{font-size:18px;margin:0;font-weight:700}
+    .controls{display:flex;flex-wrap:wrap;gap:8px}
+    input[type=file]{display:none}
+    .btn{appearance:none;border:none;border-radius:12px;padding:10px 14px;color:#fff;background:#1f2937;cursor:pointer;transition:.2s ease;display:inline-flex;gap:8px;align-items:center}
+    .btn:hover{filter:brightness(1.15)}
+    .btn.primary{background:linear-gradient(180deg,var(--accent),#179d48)}
+    .btn.blue{background:linear-gradient(180deg,var(--accent-2),#2563eb)}
+    .btn.danger{background:linear-gradient(180deg,var(--danger),#b91c1c)}
+    .btn.ghost{background:transparent;outline:1px solid rgba(255,255,255,.15)}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+    .body{padding:16px}
+    .canvas-wrap{position:relative;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:#0a0f1c}
+    canvas{display:block;width:100%;height:180px}
+    .timeline{position:absolute;inset:0;pointer-events:none}
+    .info{display:grid;grid-template-columns: repeat(6,minmax(0,1fr));gap:12px;margin-top:12px}
+    .stat{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px}
+    .stat small{display:block;color:var(--muted);font-size:12px}
+    .stat b{font-size:16px}
+    .footer{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:14px}
+    .range{display:flex;gap:8px;align-items:center}
+    input[type=range]{width:200px}
+    .kbd{font:12px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cbd5e1;background:#0b1220;border:1px solid rgba(255,255,255,.1);padding:3px 6px;border-radius:8px}
+    .hint{color:#a1a1aa}
+    .progress{position:absolute;left:0;top:0;height:100%;width:0;background:rgba(56,189,248,.08);pointer-events:none}
+    .sel{position:absolute;top:0;height:100%;left:0;width:0;background:rgba(34,197,94,.18);outline:1px dashed rgba(34,197,94,.9);pointer-events:none}
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎵 音频剪裁工具</h1>
-        
-        <div class="upload-area" id="uploadArea">
-            <div class="upload-icon">📁</div>
-            <p style="font-size: 18px; margin-bottom: 10px;">点击或拖拽音频文件到此处</p>
-            <p style="color: #666; font-size: 14px;">支持 MP3, WAV, OGG 等格式</p>
-            <input type="file" id="audioFile" accept="audio/*">
-        </div>
-
-        <div class="file-info" id="fileInfo">
-            <div class="file-name" id="fileName"></div>
-            <div class="file-details" id="fileDetails"></div>
-        </div>
-
-        <div class="waveform-container" id="waveformContainer">
-            <canvas id="waveform"></canvas>
-            <div class="selection-overlay" id="selectionOverlay" style="display: none;"></div>
-        </div>
-
-        <div class="time-display" id="timeDisplay" style="display: none;">
-            <div class="time-info">
-                <div class="time-label">开始时间</div>
-                <div class="time-value" id="startTime">00:00.00</div>
-            </div>
-            <div class="time-info">
-                <div class="time-label">结束时间</div>
-                <div class="time-value" id="endTime">00:00.00</div>
-            </div>
-            <div class="time-info">
-                <div class="time-label">选中时长</div>
-                <div class="time-value" id="duration">00:00.00</div>
-            </div>
-        </div>
-
-        <div class="controls" id="controls" style="display: none;">
-            <button class="btn-primary" id="playBtn">
-                <span>▶️</span>
-                <span>播放原音频</span>
-            </button>
-            <button class="btn-secondary" id="playSelectionBtn" disabled>
-                <span>🎧</span>
-                <span>试听选中片段</span>
-            </button>
-            <button class="btn-success" id="downloadBtn" disabled>
-                <span>💾</span>
-                <span>下载选中片段</span>
-            </button>
-        </div>
+  <div class="wrap card">
+    <div class="head">
+      <h1>本地音频剪裁工具 <span style="opacity:.6">｜波形选段、导出WAV</span></h1>
+      <div class="controls">
+        <label class="btn blue" for="fileInput">📂 载入音频</label>
+        <input id="fileInput" type="file" accept=".mp3,audio/mpeg,audio/*" />
+        <button id="playBtn" class="btn" disabled>▶️ 播放</button>
+        <button id="stopBtn" class="btn ghost" disabled>⏹️ 停止</button>
+        <button id="loopBtn" class="btn ghost" disabled>🔁 循环关</button>
+        <button id="fitBtn" class="btn ghost" disabled>🧭 适配波形</button>
+        <button id="zoomInBtn" class="btn ghost" disabled>➕ 放大</button>
+        <button id="zoomOutBtn" class="btn ghost" disabled>➖ 缩小</button>
+        <button id="resetSelBtn" class="btn ghost" disabled>🧹 清除选区</button>
+        <button id="exportBtn" class="btn primary" disabled>⬇️ 导出选段 (WAV)</button>
+      </div>
     </div>
+    <div class="body">
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="wave"></canvas>
+        <div class="progress" id="playhead"></div>
+        <div class="sel" id="selection"></div>
+        <canvas class="timeline" id="grid"></canvas>
+      </div>
+      <div class="info">
+        <div class="stat"><small>文件名</small><b id="fileName">—</b></div>
+        <div class="stat"><small>采样率</small><b id="sampleRate">—</b></div>
+        <div class="stat"><small>声道数</small><b id="channels">—</b></div>
+        <div class="stat"><small>时长</small><b id="duration">—</b></div>
+        <div class="stat"><small>选择开始</small><b id="selStart">—</b></div>
+        <div class="stat"><small>选择结束</small><b id="selEnd">—</b></div>
+      </div>
+      <div class="footer">
+        <div class="hint">提示：拖动波形即可框选；<span class="kbd">Space</span> 播放/暂停，<span class="kbd">Ctrl/Cmd+E</span> 导出选段。</div>
+        <div class="range">
+          <span>缩放：</span>
+          <input id="zoomRange" type="range" min="1" max="10" step="1" value="1" disabled />
+        </div>
+      </div>
+    </div>
+  </div>
 
-    <script>
-        let audioContext;
-        let audioBuffer;
-        let source;
-        let isPlaying = false;
-        let selectionStart = 0;
-        let selectionEnd = 0;
-        let currentFileName = '';
+<script>
+(() => {
+  const fileInput = document.getElementById('fileInput');
+  const waveCanvas = document.getElementById('wave');
+  const gridCanvas = document.getElementById('grid');
+  const wrap = document.getElementById('canvasWrap');
+  const playBtn = document.getElementById('playBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const loopBtn = document.getElementById('loopBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const fitBtn = document.getElementById('fitBtn');
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
+  const resetSelBtn = document.getElementById('resetSelBtn');
+  const zoomRange = document.getElementById('zoomRange');
+  const playheadEl = document.getElementById('playhead');
+  const selEl = document.getElementById('selection');
 
-        const uploadArea = document.getElementById('uploadArea');
-        const audioFileInput = document.getElementById('audioFile');
-        const waveformCanvas = document.getElementById('waveform');
-        const ctx = waveformCanvas.getContext('2d');
-        const playBtn = document.getElementById('playBtn');
-        const playSelectionBtn = document.getElementById('playSelectionBtn');
-        const downloadBtn = document.getElementById('downloadBtn');
-        const selectionOverlay = document.getElementById('selectionOverlay');
+  const fileNameEl = document.getElementById('fileName');
+  const srEl = document.getElementById('sampleRate');
+  const chEl = document.getElementById('channels');
+  const durEl = document.getElementById('duration');
+  const selStartEl = document.getElementById('selStart');
+  const selEndEl = document.getElementById('selEnd');
 
-        // 上传区域点击事件
-        uploadArea.addEventListener('click', () => {
-            audioFileInput.click();
-        });
+  let audioCtx; // AudioContext
+  let buffer;   // AudioBuffer
+  let srcNode;  // BufferSourceNode
+  let playing = false;
+  let loop = false;
 
-        // 拖拽事件
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
+  let zoom = 1;      // 1..10
+  let offset = 0;    // px scroll offset in waveform (for future horizontal scroll; kept 0 now)
+  let peaks = [];    // downsampled peaks
 
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
+  let selection = {active:false, start:0, end:0}; // seconds
 
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0 && files[0].type.startsWith('audio/')) {
-                handleAudioFile(files[0]);
-            }
-        });
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
 
-        // 文件选择事件
-        audioFileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleAudioFile(e.target.files[0]);
-            }
-        });
+  function fmt(t){
+    if (!isFinite(t)) return '—';
+    const sign = t < 0 ? '-' : '';
+    t = Math.max(0, t);
+    const m = Math.floor(t/60);
+    const s = Math.floor(t%60);
+    const ms = Math.floor((t*1000)%1000);
+    return `${sign}${m}:${String(s).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
+  }
 
-        // 处理音频文件
-        async function handleAudioFile(file) {
-            currentFileName = file.name.replace(/\.[^/.]+$/, '');
-            
-            // 显示文件信息
-            document.getElementById('fileName').textContent = file.name;
-            document.getElementById('fileDetails').textContent = 
-                `大小: ${(file.size / 1024 / 1024).toFixed(2)} MB | 类型: ${file.type || '音频文件'}`;
-            document.getElementById('fileInfo').classList.add('active');
+  function enableUI(enabled){
+    [playBtn, stopBtn, loopBtn, exportBtn, fitBtn, zoomInBtn, zoomOutBtn, resetSelBtn, zoomRange].forEach(b=>b.disabled=!enabled);
+  }
 
-            const arrayBuffer = await file.arrayBuffer();
-            
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            
-            try {
-                audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                drawWaveform();
-                document.getElementById('waveformContainer').classList.add('active');
-                document.getElementById('controls').style.display = 'flex';
-                document.getElementById('timeDisplay').style.display = 'flex';
-                updateTimeDisplay();
-            } catch (error) {
-                alert('音频文件解码失败，请尝试其他文件');
-                console.error(error);
-            }
+  function resize(){
+    const rect = wrap.getBoundingClientRect();
+    [waveCanvas, gridCanvas].forEach(cv=>{
+      cv.width = Math.floor(rect.width * dpr);
+      cv.height = Math.floor(180 * dpr);
+      cv.style.width = rect.width + 'px';
+      cv.style.height = '180px';
+    });
+    draw();
+  }
+  window.addEventListener('resize', resize);
+
+  async function loadFile(file){
+    stop();
+    try{
+      const arr = await file.arrayBuffer();
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // iOS/Safari needs a user-gesture-resume just in case
+      if (audioCtx.state === 'suspended') { try{ await audioCtx.resume(); }catch(e){} }
+
+      // Safari compatibility: some versions fail the promise-form of decodeAudioData for MP3.
+      // We try promise first, then fallback to callback API.
+      const tryPromiseDecode = () => audioCtx.decodeAudioData(arr.slice(0));
+      const tryCallbackDecode = () => new Promise((resolve, reject)=>{
+        audioCtx.decodeAudioData(arr.slice(0), resolve, reject);
+      });
+
+      try{
+        buffer = await tryPromiseDecode();
+      }catch(err){
+        try{ buffer = await tryCallbackDecode(); }
+        catch(err2){
+          console.error('decodeAudioData failed', err2);
+          throw new Error('无法解码该音频。若为 Apple Music/受 DRM 保护的文件将不可导入；请先将 MP3 存到“文件”App并完整下载到本地后再试。');
         }
+      }
 
-        // 绘制波形图
-        function drawWaveform() {
-            const width = waveformCanvas.offsetWidth;
-            const height = 150;
-            waveformCanvas.width = width;
-            waveformCanvas.height = height;
+      fileNameEl.textContent = file.name;
+      srEl.textContent = buffer.sampleRate + ' Hz';
+      chEl.textContent = buffer.numberOfChannels;
+      durEl.textContent = fmt(buffer.duration);
+      buildPeaks();
+      selection = {active:false,start:0,end:0};
+      updateSelInfo();
+      enableUI(true);
+      resize();
+    }catch(e){
+      console.error(e);
+      alert(e.message || '加载失败：该音频类型在此设备上不受支持。请尝试转换为 WAV/MP3（无 DRM）后再导入。');
+      enableUI(false);
+    }
+  }
 
-            const data = audioBuffer.getChannelData(0);
-            const step = Math.ceil(data.length / width);
-            const amp = height / 2;
+  function buildPeaks(){
+    // Downsample to ~2 px per sample (per dpr) for speed; granularity depends on zoom
+    const width = waveCanvas.width; // in device px
+    const samplesPerBucket = Math.max(1, Math.floor(buffer.length / width));
+    const ch0 = buffer.getChannelData(0);
+    const ch1 = buffer.numberOfChannels>1 ? buffer.getChannelData(1) : null;
+    peaks = new Array(width);
+    for (let i=0;i<width;i++){
+      const start = i*samplesPerBucket;
+      const end = Math.min((i+1)*samplesPerBucket, ch0.length);
+      let min=1, max=-1;
+      for (let j=start;j<end;j++){
+        const vL = ch0[j];
+        const vR = ch1 ? ch1[j] : vL;
+        const v = (vL + vR) * 0.5; // average stereo
+        if (v<min) min=v; if (v>max) max=v;
+      }
+      peaks[i] = [min, max];
+    }
+  }
 
-            ctx.fillStyle = '#f0f0f0';
-            ctx.fillRect(0, 0, width, height);
+  function secToX(sec){
+    const total = buffer?buffer.duration:1;
+    const rectW = waveCanvas.width;
+    return (sec/total) * rectW;
+  }
+  function xToSec(x){
+    const total = buffer?buffer.duration:1;
+    const rectW = waveCanvas.width;
+    return (x/rectW) * total;
+  }
 
-            ctx.beginPath();
-            ctx.moveTo(0, amp);
-            ctx.strokeStyle = '#667eea';
-            ctx.lineWidth = 2;
+  function draw(){
+    const ctx = waveCanvas.getContext('2d');
+    ctx.clearRect(0,0,waveCanvas.width,waveCanvas.height);
+    // background
+    ctx.fillStyle = '#0b1020';
+    ctx.fillRect(0,0,waveCanvas.width,waveCanvas.height);
 
-            for (let i = 0; i < width; i++) {
-                let min = 1.0;
-                let max = -1.0;
-                
-                for (let j = 0; j < step; j++) {
-                    const datum = data[(i * step) + j];
-                    if (datum < min) min = datum;
-                    if (datum > max) max = datum;
-                }
-                
-                ctx.lineTo(i, (1 + min) * amp);
-                ctx.lineTo(i, (1 + max) * amp);
-            }
+    if (!buffer || !peaks.length){ drawGrid(); return; }
 
-            ctx.stroke();
-        }
+    // waveform
+    const mid = waveCanvas.height/2;
+    ctx.strokeStyle = 'rgba(148,163,184,.9)';
+    ctx.beginPath();
+    for (let x=0;x<peaks.length;x+=Math.max(1,Math.floor(2/zoom))){
+      const p = peaks[x];
+      const y1 = mid + p[0]*mid*0.95;
+      const y2 = mid + p[1]*mid*0.95;
+      ctx.moveTo(x+0.5, y1);
+      ctx.lineTo(x+0.5, y2);
+    }
+    ctx.stroke();
 
-        // 波形图选择功能
-        let isSelecting = false;
-        let startX = 0;
+    drawGrid();
 
-        waveformCanvas.addEventListener('mousedown', (e) => {
-            isSelecting = true;
-            const rect = waveformCanvas.getBoundingClientRect();
-            startX = e.clientX - rect.left;
-            selectionStart = (startX / waveformCanvas.width) * audioBuffer.duration;
-        });
+    // selection overlay (handled via CSS element for crispness) -> updated in updateSelectionOverlay
+    updateSelectionOverlay();
+  }
 
-        waveformCanvas.addEventListener('mousemove', (e) => {
-            if (!isSelecting) return;
-            
-            const rect = waveformCanvas.getBoundingClientRect();
-            const currentX = e.clientX - rect.left;
-            const endX = Math.min(Math.max(currentX, 0), waveformCanvas.width);
-            
-            selectionEnd = (endX / waveformCanvas.width) * audioBuffer.duration;
-            
-            if (selectionEnd < selectionStart) {
-                [selectionStart, selectionEnd] = [selectionEnd, selectionStart];
-                startX = endX;
-            }
-            
-            updateSelection();
-        });
+  function drawGrid(){
+    const g = gridCanvas.getContext('2d');
+    g.clearRect(0,0,gridCanvas.width,gridCanvas.height);
+    if (!buffer) return;
+    const dur = buffer.duration;
+    const w = gridCanvas.width; const h = gridCanvas.height; const mid = h/2;
 
-        waveformCanvas.addEventListener('mouseup', () => {
-            if (isSelecting) {
-                isSelecting = false;
-                if (Math.abs(selectionEnd - selectionStart) > 0.1) {
-                    playSelectionBtn.disabled = false;
-                    downloadBtn.disabled = false;
-                } else {
-                    playSelectionBtn.disabled = true;
-                    downloadBtn.disabled = true;
-                    selectionOverlay.style.display = 'none';
-                }
-            }
-        });
+    g.fillStyle = 'rgba(255,255,255,.03)';
+    for (let i=0;i<5;i++){
+      const y = (i/4)*h; g.fillRect(0, y, w, 1);
+    }
 
-        // 更新选择区域显示
-        function updateSelection() {
-            if (Math.abs(selectionEnd - selectionStart) < 0.1) {
-                selectionOverlay.style.display = 'none';
-                return;
-            }
-            
-            const startPercent = (Math.min(selectionStart, selectionEnd) / audioBuffer.duration) * 100;
-            const endPercent = (Math.max(selectionStart, selectionEnd) / audioBuffer.duration) * 100;
-            
-            selectionOverlay.style.display = 'block';
-            selectionOverlay.style.left = startPercent + '%';
-            selectionOverlay.style.width = (endPercent - startPercent) + '%';
-            
-            updateTimeDisplay();
-        }
+    // time ticks every ~0.5s based on width
+    const pxPerSec = w/dur;
+    const major = Math.max(1, Math.round(100/pxPerSec)); // ensure readable spacing
+    const minor = major/2;
 
-        // 更新时间显示
-        function updateTimeDisplay() {
-            const formatTime = (seconds) => {
-                const mins = Math.floor(seconds / 60);
-                const secs = (seconds % 60).toFixed(2);
-                return `${mins.toString().padStart(2, '0')}:${secs.padStart(5, '0')}`;
-            };
-            
-            document.getElementById('startTime').textContent = formatTime(Math.min(selectionStart, selectionEnd));
-            document.getElementById('endTime').textContent = formatTime(Math.max(selectionStart, selectionEnd));
-            document.getElementById('duration').textContent = formatTime(Math.abs(selectionEnd - selectionStart));
-        }
+    g.fillStyle = 'rgba(255,255,255,.08)';
+    g.strokeStyle = 'rgba(255,255,255,.12)';
+    g.font = `${12*dpr}px ui-monospace,monospace`;
+    g.textBaseline = 'top'; g.fillStyle = 'rgba(200,200,220,.8)';
 
-        // 播放原音频
-        playBtn.addEventListener('click', () => {
-            if (isPlaying) {
-                stopPlayback();
-                playBtn.innerHTML = '<span>▶️</span><span>播放原音频</span>';
-            } else {
-                playAudio(0, audioBuffer.duration);
-                playBtn.innerHTML = '<span>⏸</span><span>停止播放</span>';
-            }
-        });
+    for (let s=0; s<=dur; s+=major){
+      const x = Math.floor(s*pxPerSec)+0.5;
+      g.strokeStyle='rgba(255,255,255,.12)';
+      g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke();
+      const label = fmt(s).replace(/^[^:]+:/,''); // show SS.mmm
+      g.fillText(label, x+4, 4);
+    }
+  }
 
-        // 播放选中片段
-        playSelectionBtn.addEventListener('click', () => {
-            if (isPlaying) {
-                stopPlayback();
-                playSelectionBtn.innerHTML = '<span>🎧</span><span>试听选中片段</span>';
-            } else {
-                const start = Math.min(selectionStart, selectionEnd);
-                const duration = Math.abs(selectionEnd - selectionStart);
-                playAudio(start, duration);
-                playSelectionBtn.innerHTML = '<span>⏸</span><span>停止试听</span>';
-            }
-        });
+  function updateSelectionOverlay(){
+    if (!buffer) { selEl.style.width = '0px'; return; }
+    if (!selection.active) { selEl.style.width = '0px'; return; }
+    const x1 = secToX(selection.start)/dpr;
+    const x2 = secToX(selection.end)/dpr;
+    selEl.style.left = Math.min(x1,x2)+ 'px';
+    selEl.style.width = Math.max(1, Math.abs(x2-x1)) + 'px';
+  }
 
-        // 播放音频
-        function playAudio(startTime, duration) {
-            stopPlayback();
-            source = audioContext.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(audioContext.destination);
-            source.start(0, startTime, duration);
-            isPlaying = true;
-            
-            source.onended = () => {
-                isPlaying = false;
-                playBtn.innerHTML = '<span>▶️</span><span>播放原音频</span>';
-                playSelectionBtn.innerHTML = '<span>🎧</span><span>试听选中片段</span>';
-            };
-        }
+  function updateSelInfo(){
+    selStartEl.textContent = selection.active? fmt(Math.min(selection.start, selection.end)) : '—';
+    selEndEl.textContent   = selection.active? fmt(Math.max(selection.start, selection.end)) : '—';
+    exportBtn.disabled = !selection.active || !buffer;
+    resetSelBtn.disabled = !selection.active;
+  }
 
-        // 停止播放
-        function stopPlayback() {
-            if (source) {
-                source.stop();
-                source = null;
-                isPlaying = false;
-            }
-        }
+  // Mouse/touch selection
+  let dragging = false;
+  function onDown(clientX){
+    if (!buffer) return;
+    dragging = true; selection.active=true;
+    const rect = waveCanvas.getBoundingClientRect();
+    const x = (clientX - rect.left) * dpr;
+    selection.start = xToSec(x);
+    selection.end = selection.start;
+    updateSelInfo(); draw();
+  }
+  function onMove(clientX){
+    if (!dragging || !buffer) return;
+    const rect = waveCanvas.getBoundingClientRect();
+    const x = (clientX - rect.left) * dpr;
+    selection.end = Math.min(buffer.duration, Math.max(0, xToSec(x)));
+    updateSelInfo(); draw();
+  }
+  function onUp(){ dragging = false; }
 
-        // 下载选中片段
-        downloadBtn.addEventListener('click', async () => {
-            const start = Math.min(selectionStart, selectionEnd);
-            const end = Math.max(selectionStart, selectionEnd);
-            const duration = end - start;
-            
-            // 创建离线音频上下文
-            const offlineContext = new OfflineAudioContext(
-                audioBuffer.numberOfChannels,
-                Math.ceil(duration * audioBuffer.sampleRate),
-                audioBuffer.sampleRate
-            );
-            
-            // 创建音频源
-            const source = offlineContext.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(offlineContext.destination);
-            source.start(0, start, duration);
-            
-            // 渲染音频
-            const renderedBuffer = await offlineContext.startRendering();
-            
-            // 转换为WAV格式
-            const wavBlob = bufferToWave(renderedBuffer);
-            
-            // 下载文件
-            const url = URL.createObjectURL(wavBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${currentFileName}_trimmed.wav`;
-            a.click();
-            URL.revokeObjectURL(url);
-        });
+  waveCanvas.addEventListener('mousedown', e=> onDown(e.clientX));
+  window.addEventListener('mousemove', e=> onMove(e.clientX));
+  window.addEventListener('mouseup', onUp);
+  waveCanvas.addEventListener('touchstart', e=>{ if(e.touches[0]) onDown(e.touches[0].clientX);});
+  window.addEventListener('touchmove', e=>{ if(e.touches[0]) onMove(e.touches[0].clientX);});
+  window.addEventListener('touchend', onUp);
 
-        // 将AudioBuffer转换为WAV格式
-        function bufferToWave(buffer) {
-            const length = buffer.length * buffer.numberOfChannels * 2 + 44;
-            const arrayBuffer = new ArrayBuffer(length);
-            const view = new DataView(arrayBuffer);
-            const channels = [];
-            let offset = 0;
-            let pos = 0;
-            
-            // 写入WAV文件头
-            setUint32(0x46464952); // "RIFF"
-            setUint32(length - 8); // file length - 8
-            setUint32(0x45564157); // "WAVE"
-            
-            setUint32(0x20746d66); // "fmt " chunk
-            setUint32(16); // length = 16
-            setUint16(1); // PCM
-            setUint16(buffer.numberOfChannels);
-            setUint32(buffer.sampleRate);
-            setUint32(buffer.sampleRate * 2 * buffer.numberOfChannels); // avg. bytes/sec
-            setUint16(buffer.numberOfChannels * 2); // block-align
-            setUint16(16); // 16-bit
-            
-            setUint32(0x61746164); // "data" - chunk
-            setUint32(length - pos - 4); // chunk length
-            
-            // 写入音频数据
-            for (let i = 0; i < buffer.numberOfChannels; i++) {
-                channels.push(buffer.getChannelData(i));
-            }
-            
-            let interleaved = new Float32Array(buffer.length * buffer.numberOfChannels);
-            for (let i = 0; i < buffer.length; i++) {
-                for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
-                    interleaved[i * buffer.numberOfChannels + channel] = channels[channel][i];
-                }
-            }
-            
-            // 转换为16位PCM
-            for (let i = 0; i < interleaved.length; i++) {
-                const s = Math.max(-1, Math.min(1, interleaved[i]));
-                view.setInt16(pos, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-                pos += 2;
-            }
-            
-            return new Blob([arrayBuffer], { type: 'audio/wav' });
-            
-            function setUint16(data) {
-                view.setUint16(pos, data, true);
-                pos += 2;
-            }
-            
-            function setUint32(data) {
-                view.setUint32(pos, data, true);
-                pos += 4;
-            }
-        }
+  // Playback
+  let playStartTime = 0; // context time when started
+  let playStartOffset = 0; // seconds into buffer when started
 
-        // 响应式调整
-        window.addEventListener('resize', () => {
-            if (audioBuffer) {
-                drawWaveform();
-                updateSelection();
-            }
-        });
-    </script>
+  function startNode(offsetSec, durationSec){
+    stop();
+    srcNode = audioCtx.createBufferSource();
+    srcNode.buffer = buffer;
+    srcNode.connect(audioCtx.destination);
+    srcNode.loop = loop && selection.active;
+    if (srcNode.loop){
+      const a = Math.min(selection.start, selection.end);
+      const b = Math.max(selection.start, selection.end);
+      srcNode.loopStart = a;
+      srcNode.loopEnd = b;
+      srcNode.start(0, a);
+      playStartOffset = a;
+    } else {
+      srcNode.start(0, offsetSec || 0, durationSec||undefined);
+      playStartOffset = offsetSec||0;
+    }
+    playStartTime = audioCtx.currentTime;
+    playing = true;
+    playBtn.textContent = '⏸️ 暂停';
+    rafPlayhead();
+    srcNode.onended = ()=>{ if(!srcNode) return; if(!srcNode.loop){ playing=false; playBtn.textContent='▶️ 播放'; updatePlayhead(0); }};
+  }
+
+  function play(){
+    if (!buffer) return;
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (playing) { pause(); return; }
+    if (selection.active){
+      const a = Math.min(selection.start, selection.end);
+      const b = Math.max(selection.start, selection.end);
+      startNode(a, b-a);
+    } else {
+      startNode(0);
+    }
+  }
+
+  function pause(){
+    if (!playing) return;
+    // capture current offset
+    const elapsed = audioCtx.currentTime - playStartTime;
+    playStartOffset += elapsed;
+    stop(true);
+    playing = false;
+    playBtn.textContent = '▶️ 播放';
+  }
+
+  function stop(keepOffset=false){
+    if (srcNode){
+      try{ srcNode.stop(); }catch(e){}
+      try{ srcNode.disconnect(); }catch(e){}
+    }
+    srcNode = null;
+    if (!keepOffset){ playStartOffset = 0; }
+    playBtn.textContent = '▶️ 播放';
+    playing = false;
+    updatePlayhead(0);
+  }
+
+  function updatePlayhead(forcedX){
+    if (!buffer){ playheadEl.style.width='0px'; return; }
+    let curSec;
+    if (playing){
+      const elapsed = audioCtx.currentTime - playStartTime;
+      curSec = (playStartOffset + elapsed) % buffer.duration;
+    } else {
+      curSec = selection.active ? Math.min(selection.end, buffer.duration) : 0;
+    }
+    const x = forcedX || (secToX(curSec)/dpr);
+    playheadEl.style.width = Math.max(0, Math.min(x, waveCanvas.clientWidth)) + 'px';
+  }
+
+  function rafPlayhead(){
+    if (!playing) return;
+    updatePlayhead();
+    requestAnimationFrame(rafPlayhead);
+  }
+
+  // Export WAV
+  function exportSelection(){
+    if (!buffer || !selection.active) return;
+    const a = Math.max(0, Math.min(selection.start, selection.end));
+    const b = Math.max(0, Math.min(buffer.duration, Math.max(selection.start, selection.end)));
+    const sr = buffer.sampleRate;
+    const startFrame = Math.floor(a*sr);
+    const endFrame = Math.floor(b*sr);
+    const frameCount = Math.max(0, endFrame - startFrame);
+    const ch = buffer.numberOfChannels;
+
+    // Create new Float32 arrays per channel
+    const channels = [];
+    for (let c=0;c<ch;c++){
+      const src = buffer.getChannelData(c);
+      const slice = new Float32Array(frameCount);
+      slice.set(src.subarray(startFrame, endFrame));
+      channels.push(slice);
+    }
+
+    const wav = encodeWAVFromFloat32(channels, sr);
+    const blob = new Blob([wav], {type:'audio/wav'});
+    const url = URL.createObjectURL(blob);
+
+    const aEl = document.createElement('a');
+    const base = (document.getElementById('fileName').textContent||'audio').replace(/\.[^/.]+$/,'');
+    aEl.download = `${base}_${fmt(a).replace(/[:.]/g,'')}-${fmt(b).replace(/[:.]/g,'')}.wav`;
+    aEl.href = url; aEl.click();
+    setTimeout(()=> URL.revokeObjectURL(url), 10000);
+  }
+
+  function encodeWAVFromFloat32(channels, sampleRate){
+    // PCM 16-bit little-endian
+    const numChannels = channels.length;
+    const numFrames = channels[0].length;
+    const bytesPerSample = 2;
+    const blockAlign = numChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = numFrames * blockAlign;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    function writeStr(off, str){ for(let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); }
+
+    // RIFF header
+    writeStr(0,'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeStr(8,'WAVE');
+
+    // fmt chunk
+    writeStr(12,'fmt ');
+    view.setUint32(16, 16, true); // PCM chunk size
+    view.setUint16(20, 1, true);  // PCM format
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true); // bits per sample
+
+    // data chunk
+    writeStr(36,'data');
+    view.setUint32(40, dataSize, true);
+
+    // Interleave and write samples
+    let offset = 44;
+    for (let i=0; i<numFrames; i++){
+      for (let ch=0; ch<numChannels; ch++){
+        let s = channels[ch][i];
+        s = Math.max(-1, Math.min(1, s));
+        const v = s < 0 ? s * 0x8000 : s * 0x7FFF; // 16-bit signed
+        view.setInt16(offset, v, true); offset += 2;
+      }
+    }
+    return view;
+  }
+
+  // Events
+  fileInput.addEventListener('change', async e=>{
+    const f = e.target.files[0]; if (!f) return;
+    // iOS 针对性提示：从“文件”App 选择、确保不是 Apple Music 的受保护音频
+    await loadFile(f);
+  });
+  });
+  playBtn.addEventListener('click', play);
+  stopBtn.addEventListener('click', ()=> stop());
+  exportBtn.addEventListener('click', exportSelection);
+  loopBtn.addEventListener('click', ()=>{
+    loop = !loop; loopBtn.textContent = loop? '🔁 循环开' : '🔁 循环关';
+    if (srcNode) { srcNode.loop = loop && selection.active; }
+  });
+  fitBtn.addEventListener('click', ()=>{ zoom = 1; zoomRange.value=1; draw(); });
+  zoomInBtn.addEventListener('click', ()=>{ zoom = Math.min(10, zoom+1); zoomRange.value=zoom; draw(); });
+  zoomOutBtn.addEventListener('click', ()=>{ zoom = Math.max(1, zoom-1); zoomRange.value=zoom; draw(); });
+  resetSelBtn.addEventListener('click', ()=>{ selection={active:false,start:0,end:0}; updateSelInfo(); draw(); });
+  zoomRange.addEventListener('input', e=>{ zoom = +e.target.value; draw(); });
+
+  // Keyboard
+  window.addEventListener('keydown', e=>{
+    if (e.code==='Space'){ e.preventDefault(); play(); }
+    if ((e.ctrlKey||e.metaKey) && (e.key==='e'||e.key==='E')){ e.preventDefault(); exportSelection(); }
+  });
+
+  // Initial
+  enableUI(false);
+  resize();
+})();
+</script>
 </body>
 </html>
