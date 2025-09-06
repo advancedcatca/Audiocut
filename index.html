@@ -365,7 +365,10 @@
                     document.getElementById('progressFill').style.width = '100%';
                     
                     // 绘制波形图
-                    this.drawWaveform();
+                    console.log('Starting to draw waveform...');
+                    setTimeout(() => {
+                        this.drawWaveform();
+                    }, 100);
                     
                     // 更新文件信息
                     this.updateFileInfo(file);
