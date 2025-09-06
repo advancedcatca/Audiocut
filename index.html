@@ -151,13 +151,23 @@
   async function loadFile(file){
     stop();
     try{
-      const arr = await file.arrayBuffer();
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      // iOS/Safari needs a user-gesture-resume just in case
+      // iOS/Safari: 确保在用户手势后恢复
       if (audioCtx.state === 'suspended') { try{ await audioCtx.resume(); }catch(e){} }
 
-      // Safari compatibility: some versions fail the promise-form of decodeAudioData for MP3.
-      // We try promise first, then fallback to callback API.
+      // 读取为 ArrayBuffer，增加 FileReader 兜底（针对部分 iOS 版本）
+      let arr;
+      try{ arr = await file.arrayBuffer(); }
+      catch(e){
+        arr = await new Promise((resolve, reject)=>{
+          const fr = new FileReader();
+          fr.onerror = () => reject(fr.error||new Error('FileReader 失败'));
+          fr.onload = () => resolve(fr.result);
+          fr.readAsArrayBuffer(file);
+        });
+      }
+
+      // Safari 某些 MP3 在 promise 版 decodeAudioData 会失败，增加回调版兜底
       const tryPromiseDecode = () => audioCtx.decodeAudioData(arr.slice(0));
       const tryCallbackDecode = () => new Promise((resolve, reject)=>{
         audioCtx.decodeAudioData(arr.slice(0), resolve, reject);
@@ -168,12 +178,12 @@
       }catch(err){
         try{ buffer = await tryCallbackDecode(); }
         catch(err2){
-          console.error('decodeAudioData failed', err2);
-          throw new Error('无法解码该音频。若为 Apple Music/受 DRM 保护的文件将不可导入；请先将 MP3 存到“文件”App并完整下载到本地后再试。');
+          console.error('decodeAudioData failed', err, err2);
+          throw new Error('无法解码该音频。请确认：1) 不是 Apple Music/受DRM保护；2) 已完整下载到“文件”App；3) 如仍失败，请先用工具转成 WAV 再导入。');
         }
       }
 
-      fileNameEl.textContent = file.name;
+      fileNameEl.textContent = file.name || '未命名音频';
       srEl.textContent = buffer.sampleRate + ' Hz';
       chEl.textContent = buffer.numberOfChannels;
       durEl.textContent = fmt(buffer.duration);
@@ -189,7 +199,7 @@
     }
   }
 
-  function buildPeaks(){
+  function buildPeaks()(){
     // Downsample to ~2 px per sample (per dpr) for speed; granularity depends on zoom
     const width = waveCanvas.width; // in device px
     const samplesPerBucket = Math.max(1, Math.floor(buffer.length / width));
@@ -483,9 +493,11 @@
 
   // Events
   fileInput.addEventListener('change', async e=>{
-    const f = e.target.files[0]; if (!f) return;
-    // iOS 针对性提示：从“文件”App 选择、确保不是 Apple Music 的受保护音频
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    // iOS 特别提醒：请从“文件”App选择本地文件，勿从“音乐”导入
     await loadFile(f);
+  });
   });
   });
   playBtn.addEventListener('click', play);
