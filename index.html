@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>本地音频剪裁（iPad MP3 兼容整合版）</title>
+  <title>本地音频剪裁工具｜iPad 兼容 + MP3 导出</title>
   <style>
-    :root{--bg:#0f172a;--panel:#0b1220;--muted:#94a3b8;--accent:#22c55e;--accent2:#60a5fa;--text:#e5e7eb;--danger:#ef4444}
+    :root{--bg:#0f172a;--panel:#111827;--muted:#6b7280;--accent:#22c55e;--accent-2:#3b82f6;--text:#e5e7eb;--danger:#ef4444}
     *{box-sizing:border-box}
     html,body{height:100%}
     body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0f1f);color:var(--text);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC","Noto Sans CJK SC","Microsoft Yahei",sans-serif}
@@ -18,7 +18,7 @@
     .btn{appearance:none;border:none;border-radius:12px;padding:10px 14px;color:#fff;background:#1f2937;cursor:pointer;transition:.2s ease;display:inline-flex;gap:8px;align-items:center}
     .btn:hover{filter:brightness(1.15)}
     .btn.primary{background:linear-gradient(180deg,var(--accent),#179d48)}
-    .btn.blue{background:linear-gradient(180deg,var(--accent2),#2563eb)}
+    .btn.blue{background:linear-gradient(180deg,var(--accent-2),#2563eb)}
     .btn.danger{background:linear-gradient(180deg,var(--danger),#b91c1c)}
     .btn.ghost{background:transparent;outline:1px solid rgba(255,255,255,.15)}
     .btn:disabled{opacity:.55;cursor:not-allowed}
@@ -33,13 +33,13 @@
     .footer{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:14px}
     .range{display:flex;gap:8px;align-items:center}
     input[type=range]{width:200px}
-    .kbd{font:12px/1.2 ui-monospace,Menlo,monospace;color:#cbd5e1;background:#0b1220;border:1px solid rgba(255,255,255,.1);padding:3px 6px;border-radius:8px}
+    .kbd{font:12px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cbd5e1;background:#0b1220;border:1px solid rgba(255,255,255,.1);padding:3px 6px;border-radius:8px}
+    .hint{color:#a1a1aa}
     .progress{position:absolute;left:0;top:0;height:100%;width:0;background:rgba(56,189,248,.08);pointer-events:none}
     .sel{position:absolute;top:0;height:100%;left:0;width:0;background:rgba(34,197,94,.18);outline:1px dashed rgba(34,197,94,.9);pointer-events:none}
-    .notice{color:#a1a1aa;font-size:14px;margin-top:10px}
-    .loading{display:none;gap:8px;align-items:center}
+    .loading{display:none;gap:8px;align-items:center;color:#93c5fd}
     .loading.on{display:inline-flex}
-    .dot{width:8px;height:8px;border-radius:50%;background:#60a5fa;animation: b 1s infinite}
+    .dot{width:8px;height:8px;border-radius:50%;background:#60a5fa;animation:b 1s infinite}
     .dot:nth-child(2){animation-delay:.15s}.dot:nth-child(3){animation-delay:.3s}
     @keyframes b{0%{transform:translateY(0)}50%{transform:translateY(-4px)}100%{transform:translateY(0)}}
   </style>
@@ -47,7 +47,7 @@
 <body>
   <div class="wrap card">
     <div class="head">
-      <h1>本地音频剪裁 <span style="opacity:.6">｜iPad MP3 兼容</span></h1>
+      <h1>本地音频剪裁工具 <span style="opacity:.6">｜iPad 兼容 & MP3 导出</span></h1>
       <div class="controls">
         <label class="btn blue" for="fileInput">📂 载入音频</label>
         <input id="fileInput" type="file" accept="audio/*,.mp3,audio/mpeg,.m4a" />
@@ -58,7 +58,8 @@
         <button id="zoomInBtn" class="btn ghost" disabled>➕ 放大</button>
         <button id="zoomOutBtn" class="btn ghost" disabled>➖ 缩小</button>
         <button id="resetSelBtn" class="btn ghost" disabled>🧹 清除选区</button>
-        <button id="exportBtn" class="btn primary" disabled>⬇️ 导出选段 (WAV)</button>
+        <button id="exportWavBtn" class="btn primary" disabled>⬇️ 导出选段 (WAV)</button>
+        <button id="exportMp3Btn" class="btn ghost" disabled>🎧 导出选段 (MP3)</button>
       </div>
     </div>
     <div class="body">
@@ -78,9 +79,8 @@
       </div>
       <div class="footer">
         <div>
-          <span class="hint">提示：拖动波形框选；<span class="kbd">Space</span> 播放/暂停，<span class="kbd">Ctrl/Cmd+E</span> 导出。</span>
-          <span id="loading" class="loading" style="margin-left:10px"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span> 正在转码以兼容 iPad…</span></span>
-          <div class="notice">若 MP3 在 iPad 上无法直接解码，页面会自动通过 <code>MediaRecorder</code> 静音转码后再显示波形（会耗时≈音频时长）。</div>
+          <div class="hint">提示：拖动波形即可框选；<span class="kbd">Space</span> 播放/暂停，<span class="kbd">Ctrl/Cmd+E</span> 导出选段。</div>
+          <div id="loading" class="loading" style="margin-top:6px"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:6px">长音频/MP3 在 iPad 上将静音转码，耗时≈音频时长</span></div>
         </div>
         <div class="range">
           <span>缩放：</span>
@@ -99,7 +99,8 @@
   const playBtn = document.getElementById('playBtn');
   const stopBtn = document.getElementById('stopBtn');
   const loopBtn = document.getElementById('loopBtn');
-  const exportBtn = document.getElementById('exportBtn');
+  const exportWavBtn = document.getElementById('exportWavBtn');
+  const exportMp3Btn = document.getElementById('exportMp3Btn');
   const fitBtn = document.getElementById('fitBtn');
   const zoomInBtn = document.getElementById('zoomInBtn');
   const zoomOutBtn = document.getElementById('zoomOutBtn');
@@ -129,6 +130,9 @@
 
   const dpr = Math.max(1, window.devicePixelRatio || 1);
 
+  const LONG_FILE_BYTE_THRESHOLD = 80 * 1024 * 1024; // 80MB 以上走长音频模式
+  const LONG_FILE_DURATION_THRESHOLD = 2 * 3600; // >2小时
+
   function fmt(t){
     if (!isFinite(t)) return '—';
     const sign = t < 0 ? '-' : '';
@@ -140,9 +144,8 @@
   }
 
   function enableUI(enabled){
-    [playBtn, stopBtn, loopBtn, exportBtn, fitBtn, zoomInBtn, zoomOutBtn, resetSelBtn, zoomRange].forEach(b=>b.disabled=!enabled);
+    [playBtn, stopBtn, loopBtn, exportWavBtn, exportMp3Btn, fitBtn, zoomInBtn, zoomOutBtn, resetSelBtn, zoomRange].forEach(b=>b.disabled=!enabled);
   }
-
   function showLoading(on){ loading.classList.toggle('on', !!on); }
 
   function resize(){
@@ -157,7 +160,7 @@
   }
   window.addEventListener('resize', resize);
 
-  // ===== iOS/Safari MP3 兜底：失败则用 <audio> + MediaRecorder 转码再解码 =====
+  // ===== iOS/Safari MP3 & 长音频兜底：失败或过大则用 <audio> + MediaRecorder 实时转码 =====
   async function decodeArrayBufferWithFallback(arrBuf, ctx){
     try{ return await ctx.decodeAudioData(arrBuf.slice(0)); }
     catch(e1){
@@ -168,18 +171,19 @@
     }
   }
 
-  async function transcodeViaMediaRecorder(file, ctx){
+  async function transcodeViaMediaRecorderAndBuildPeaks(file, ctx){
     if (!('MediaRecorder' in window)) throw new Error('此浏览器不支持 MediaRecorder 兜底。');
-    const audioEl = new Audio();
-    audioEl.preload='auto';
-    audioEl.muted = true; // 静音播放以便录制
-    const url = URL.createObjectURL(file);
-    audioEl.src = url;
+    showLoading(true);
+    const audioEl = new Audio(); audioEl.preload='auto'; audioEl.muted = true;
+    const url = URL.createObjectURL(file); audioEl.src = url;
 
     const dest = ctx.createMediaStreamDestination();
     const src = ctx.createMediaElementSource(audioEl);
-    src.connect(dest);
-    src.connect(ctx.destination);
+    src.connect(dest); src.connect(ctx.destination);
+
+    // 采样波形：通过 AnalyserNode 实时采样，累积成低分辨率峰值（避免一次性解码占内存）
+    const analyser = ctx.createAnalyser(); analyser.fftSize = 1024; src.connect(analyser);
+    const timeData = new Float32Array(analyser.fftSize);
 
     let mime = '';
     try{
@@ -187,55 +191,98 @@
       else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm')) mime='audio/webm';
     }catch(_){ mime=''; }
 
-    const chunks=[];
-    const rec = mime? new MediaRecorder(dest.stream,{mimeType:mime}) : new MediaRecorder(dest.stream);
+    const chunks=[]; const rec = mime? new MediaRecorder(dest.stream,{mimeType:mime}) : new MediaRecorder(dest.stream);
     rec.ondataavailable = e=>{ if(e.data && e.data.size) chunks.push(e.data); };
 
     if (ctx.state==='suspended'){ try{ await ctx.resume(); }catch(_){} }
-    await audioEl.play().catch(()=>{});
-    rec.start();
 
-    await new Promise(res=>{
-      const end = ()=>{ try{rec.stop();}catch(_){ } audioEl.removeEventListener('ended', end); res(); };
-      audioEl.addEventListener('ended', end);
-      if (!isFinite(audioEl.duration) || audioEl.duration<=0){ setTimeout(end, 10*60*1000); }
+    // 为了预先知道 duration（有些容器需要 metadata loaded）
+    await new Promise(res=>{ const f=()=>{audioEl.removeEventListener('loadedmetadata', f); res();}; audioEl.addEventListener('loadedmetadata', f); });
+    const totalDur = isFinite(audioEl.duration)? audioEl.duration : 0;
+
+    // 初始化峰值容器（按像素列）
+    const width = Math.max(600, Math.floor(waveCanvas.getBoundingClientRect().width * dpr));
+    peaks = new Array(width).fill(0).map(()=>[1,-1]);
+
+    const startTime = performance.now();
+    rec.start();
+    await audioEl.play().catch(()=>{});
+
+    // 播放过程中定时抽样，填充 peaks
+    let rafId;
+    await new Promise(resolve=>{
+      const tick = ()=>{
+        analyser.getFloatTimeDomainData(timeData);
+        // 将当前时间映射到像素列（如果拿不到 duration，就按已采样进度均匀推进）
+        const cur = audioEl.currentTime;
+        const ratio = totalDur>0? (cur/totalDur) : Math.min(1, (performance.now()-startTime)/(1000*60*60*6)); // 最多6小时估计
+        const x = Math.min(width-1, Math.max(0, Math.floor(ratio*width)));
+        let min=1, max=-1;
+        for (let i=0;i<timeData.length;i++){ const v=timeData[i]; if(v<min)min=v; if(v>max)max=v; }
+        if (min<peaks[x][0]) peaks[x][0]=min; if (max>peaks[x][1]) peaks[x][1]=max;
+        draw();
+        rafId = requestAnimationFrame(tick);
+      };
+      rafId = requestAnimationFrame(tick);
+      const onEnded = ()=>{ cancelAnimationFrame(rafId); rec.stop(); audioEl.removeEventListener('ended', onEnded); resolve(); };
+      audioEl.addEventListener('ended', onEnded);
+      if (!isFinite(totalDur) || totalDur<=0){ setTimeout(onEnded, 10*60*1000); }
     });
 
     const out = new Blob(chunks, {type: mime||'application/octet-stream'});
     const arr = await out.arrayBuffer();
     URL.revokeObjectURL(url);
+    showLoading(false);
     return await decodeArrayBufferWithFallback(arr, ctx);
   }
 
-  async function decodeWithFallback(file){
+  async function decodeWithFallbackSmart(file, hintDuration){
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state==='suspended'){ try{ await audioCtx.resume(); }catch(_){} }
-    try{
-      const arr = await file.arrayBuffer();
-      return await decodeArrayBufferWithFallback(arr, audioCtx);
-    }catch(e){
-      showLoading(true);
-      try{ return await transcodeViaMediaRecorder(file, audioCtx); }
-      finally{ showLoading(false); }
+
+    const longBySize = file.size >= LONG_FILE_BYTE_THRESHOLD;
+    const longByDur = hintDuration && hintDuration >= LONG_FILE_DURATION_THRESHOLD;
+
+    // 先尝试直接解码（小文件/短时长）
+    if (!longBySize && !longByDur){
+      try{ const arr = await file.arrayBuffer(); return await decodeArrayBufferWithFallback(arr, audioCtx); }
+      catch(e){ /* 失败再走转码 */ }
     }
+    // 长音频或解码失败 → 实时转码并边录边构建波形
+    return await transcodeViaMediaRecorderAndBuildPeaks(file, audioCtx);
   }
 
   async function loadFile(file){
     stop();
     try{
-      buffer = await decodeWithFallback(file);
+      showLoading(false);
+      // 先拿到大概时长（如果容器能读）
+      let hintDuration = 0;
+      try{
+        hintDuration = await new Promise(res=>{
+          const a=new Audio(); a.preload='metadata'; a.src=URL.createObjectURL(file);
+          a.onloadedmetadata = ()=>{ res(isFinite(a.duration)? a.duration:0); URL.revokeObjectURL(a.src); };
+          a.onerror = ()=>{ res(0); try{URL.revokeObjectURL(a.src);}catch{} };
+        });
+      }catch{}
+
+      buffer = await decodeWithFallbackSmart(file, hintDuration);
+
       fileNameEl.textContent = file.name || '未命名音频';
       srEl.textContent = buffer.sampleRate + ' Hz';
       chEl.textContent = buffer.numberOfChannels;
       durEl.textContent = fmt(buffer.duration);
-      buildPeaks();
+
+      if (!peaks.length) buildPeaks(); // 若不是边录生成，就常规构建
+
       selection = {active:false,start:0,end:0};
       updateSelInfo();
       enableUI(true);
       resize();
     }catch(e){
       console.error(e);
-      alert((e && e.message) ? e.message : '加载失败：该音频在此设备上解码受限。可尝试用第三方App先转为 WAV 再导入。');
+      showLoading(false);
+      alert((e && e.message) ? e.message : '加载失败：该音频在此设备上解码受限。可尝试先转为 WAV 再导入。');
       enableUI(false);
     }
   }
@@ -254,7 +301,7 @@
       for (let j=start;j<end;j++){
         const vL = ch0[j];
         const vR = ch1 ? ch1[j] : vL;
-        const v = (vL + vR) * 0.5;
+        const v = (vL + vR) * 0.5; // average stereo
         if (v<min) min=v; if (v>max) max=v;
       }
       peaks[i] = [min, max];
@@ -269,7 +316,7 @@
     ctx.clearRect(0,0,waveCanvas.width,waveCanvas.height);
     ctx.fillStyle = '#0b1020'; ctx.fillRect(0,0,waveCanvas.width,waveCanvas.height);
 
-    if (!buffer || !peaks.length){ drawGrid(); return; }
+    if (!peaks.length){ drawGrid(); return; }
 
     const mid = waveCanvas.height/2;
     ctx.strokeStyle = 'rgba(148,163,184,.9)';
@@ -288,9 +335,9 @@
   }
 
   function drawGrid(){
+    if (!buffer) return; // 没有时长就不画网格
     const g = gridCanvas.getContext('2d');
     g.clearRect(0,0,gridCanvas.width,gridCanvas.height);
-    if (!buffer) return;
     const dur = buffer.duration; const w = gridCanvas.width; const h = gridCanvas.height;
     g.fillStyle = 'rgba(255,255,255,.03)';
     for (let i=0;i<5;i++){ const y=(i/4)*h; g.fillRect(0,y,w,1); }
@@ -309,7 +356,8 @@
   function updateSelInfo(){
     selStartEl.textContent = selection.active? fmt(Math.min(selection.start, selection.end)) : '—';
     selEndEl.textContent   = selection.active? fmt(Math.max(selection.start, selection.end)) : '—';
-    exportBtn.disabled = !selection.active || !buffer;
+    exportWavBtn.disabled = !selection.active || !buffer;
+    exportMp3Btn.disabled = !selection.active || !buffer;
     resetSelBtn.disabled = !selection.active;
   }
 
@@ -329,6 +377,7 @@
   let playStartTime = 0; let playStartOffset = 0;
   function startNode(offsetSec, durationSec){
     stop();
+    if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
     srcNode = audioCtx.createBufferSource(); srcNode.buffer = buffer; srcNode.connect(audioCtx.destination); srcNode.loop = loop && selection.active;
     if (srcNode.loop){ const a=Math.min(selection.start, selection.end); const b=Math.max(selection.start, selection.end); srcNode.loopStart=a; srcNode.loopEnd=b; srcNode.start(0,a); playStartOffset=a; }
     else { srcNode.start(0, offsetSec||0, durationSec||undefined); playStartOffset = offsetSec||0; }
@@ -341,30 +390,74 @@
   function updatePlayhead(forcedX){ if(!buffer){ playheadEl.style.width='0px'; return; } let curSec; if(playing){ const elapsed=audioCtx.currentTime - playStartTime; curSec=(playStartOffset+elapsed)%buffer.duration; } else { curSec= selection.active? Math.min(selection.end, buffer.duration):0; } const x = forcedX || (secToX(curSec)/dpr); playheadEl.style.width = Math.max(0, Math.min(x, waveCanvas.clientWidth)) + 'px'; }
   function rafPlayhead(){ if(!playing) return; updatePlayhead(); requestAnimationFrame(rafPlayhead); }
 
-  // Export WAV
-  function exportSelection(){
-    if (!buffer || !selection.active) return;
+  // ===== 导出：WAV & MP3 =====
+  function getSelectionFloat32(){
+    if (!buffer || !selection.active) return null;
     const a = Math.max(0, Math.min(selection.start, selection.end));
     const b = Math.max(0, Math.min(buffer.duration, Math.max(selection.start, selection.end)));
     const sr = buffer.sampleRate; const startFrame = Math.floor(a*sr); const endFrame = Math.floor(b*sr); const frameCount = Math.max(0, endFrame - startFrame); const ch = buffer.numberOfChannels;
     const channels=[]; for (let c=0;c<ch;c++){ const src = buffer.getChannelData(c); const slice = new Float32Array(frameCount); slice.set(src.subarray(startFrame, endFrame)); channels.push(slice);}    
-    const wav = encodeWAVFromFloat32(channels, sr);
+    return {channels, sampleRate: sr};
+  }
+
+  function exportSelectionWav(){
+    const data = getSelectionFloat32(); if(!data) return;
+    const wav = encodeWAVFromFloat32(data.channels, data.sampleRate);
     const blob = new Blob([wav], {type:'audio/wav'});
+    triggerDownload(blob, '.wav');
+  }
+
+  async function exportSelectionMp3(){
+    const data = getSelectionFloat32(); if(!data) return;
+    // 动态加载 lamejs（仅在第一次导出 MP3 时加载）
+    if (!window.lamejs){
+      await new Promise((res, rej)=>{
+        const s=document.createElement('script');
+        s.src='https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';
+        s.onload=res; s.onerror=()=>rej(new Error('无法加载 MP3 编码库（lamejs）。'));
+        document.head.appendChild(s);
+      });
+    }
+    const {channels, sampleRate} = data;
+    // lamejs 只能编码 1 或 2 通道，若>2，降到立体声
+    const ch = Math.min(2, channels.length);
+    const left = channels[0];
+    const right = ch>1? channels[1] : channels[0];
+
+    // 将 Float32 [-1,1] 转 Int16
+    function f32ToS16PCM(f){ const out = new Int16Array(f.length); for (let i=0;i<f.length;i++){ let s = Math.max(-1, Math.min(1, f[i])); out[i] = s<0 ? s*0x8000 : s*0x7FFF; } return out; }
+    const leftS16 = f32ToS16PCM(left);
+    const rightS16 = f32ToS16PCM(right);
+
+    const kbps = 128; // 码率
+    const encoder = new lamejs.Mp3Encoder(ch, sampleRate, kbps);
+    const blockSize = 1152; // MP3 帧大小
+    const mp3Data = [];
+    for (let i=0;i<leftS16.length; i+=blockSize){
+      const l = leftS16.subarray(i, i+blockSize);
+      const r = rightS16.subarray(i, i+blockSize);
+      const chunk = ch===2? encoder.encodeBuffer(l, r) : encoder.encodeBuffer(l);
+      if (chunk.length) mp3Data.push(chunk);
+    }
+    const end = encoder.flush(); if (end.length) mp3Data.push(end);
+    const blob = new Blob(mp3Data, {type:'audio/mpeg'});
+    triggerDownload(blob, '.mp3');
+  }
+
+  function triggerDownload(blob, ext){
     const url = URL.createObjectURL(blob);
     const base = (document.getElementById('fileName').textContent||'audio').replace(/\.[^/.]+$/,'');
-    const aEl = document.createElement('a');
-    aEl.download = `${base}_${fmt(a).replace(/[:.]/g,'')}-${fmt(b).replace(/[:.]/g,'')}.wav`;
-    aEl.href = url; aEl.click();
-    setTimeout(()=> URL.revokeObjectURL(url), 10000);
+    const a = Math.max(0, Math.min(selection.start, selection.end));
+    const b = Math.max(0, Math.min(buffer.duration, Math.max(selection.start, selection.end)));
+    const name = `${base}_${fmt(a).replace(/[:.]/g,'')}-${fmt(b).replace(/[:.]/g,'')}${ext}`;
+    const aEl = document.createElement('a'); aEl.href=url; aEl.download=name; aEl.click(); setTimeout(()=>URL.revokeObjectURL(url),10000);
   }
 
   function encodeWAVFromFloat32(channels, sampleRate){
-    const numChannels = channels.length; const numFrames = channels[0].length; const bytesPerSample = 2; const blockAlign = numChannels * bytesPerSample; const byteRate = sampleRate * blockAlign; const dataSize = numFrames * blockAlign; const buffer = new ArrayBuffer(44 + dataSize); const view = new DataView(buffer);
-    function writeStr(off, str){ for(let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); }
-    writeStr(0,'RIFF'); view.setUint32(4, 36 + dataSize, true); writeStr(8,'WAVE');
-    writeStr(12,'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true); view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true);
-    writeStr(36,'data'); view.setUint32(40, dataSize, true);
-    let offset = 44; for (let i=0;i<numFrames;i++){ for (let ch=0; ch<numChannels; ch++){ let s = channels[ch][i]; s = Math.max(-1, Math.min(1, s)); const v = s < 0 ? s * 0x8000 : s * 0x7FFF; view.setInt16(offset, v, true); offset+=2; } }
+    const numChannels = channels.length; const numFrames = channels[0].length; const bytesPerSample = 2; const blockAlign = numChannels * bytesPerSample; const byteRate = sampleRate * blockAlign; const dataSize = numFrames * blockAlign; const buf = new ArrayBuffer(44 + dataSize); const view = new DataView(buf);
+    function wstr(off,str){ for(let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); }
+    wstr(0,'RIFF'); view.setUint32(4, 36 + dataSize, true); wstr(8,'WAVE'); wstr(12,'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true); view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true); wstr(36,'data'); view.setUint32(40, dataSize, true);
+    let offset=44; for (let i=0;i<numFrames;i++){ for (let ch=0; ch<numChannels; ch++){ let s = channels[ch][i]; s = Math.max(-1, Math.min(1, s)); const v = s < 0 ? s * 0x8000 : s * 0x7FFF; view.setInt16(offset, v, true); offset+=2; } }
     return view;
   }
 
@@ -372,15 +465,17 @@
   fileInput.addEventListener('change', async e=>{ const f = e.target.files && e.target.files[0]; if (!f) return; await loadFile(f); });
   playBtn.addEventListener('click', play);
   stopBtn.addEventListener('click', ()=> stop());
-  exportBtn.addEventListener('click', exportSelection);
+  exportWavBtn.addEventListener('click', exportSelectionWav);
+  exportMp3Btn.addEventListener('click', exportSelectionMp3);
   loopBtn.addEventListener('click', ()=>{ loop = !loop; loopBtn.textContent = loop? '🔁 循环开' : '🔁 循环关'; if (srcNode) { srcNode.loop = loop && selection.active; } });
   fitBtn.addEventListener('click', ()=>{ zoom = 1; zoomRange.value=1; draw(); });
   zoomInBtn.addEventListener('click', ()=>{ zoom = Math.min(10, zoom+1); zoomRange.value=zoom; draw(); });
   zoomOutBtn.addEventListener('click', ()=>{ zoom = Math.max(1, zoom-1); zoomRange.value=zoom; draw(); });
   resetSelBtn.addEventListener('click', ()=>{ selection={active:false,start:0,end:0}; updateSelInfo(); draw(); });
   zoomRange.addEventListener('input', e=>{ zoom = +e.target.value; draw(); });
-  window.addEventListener('keydown', e=>{ if (e.code==='Space'){ e.preventDefault(); play(); } if ((e.ctrlKey||e.metaKey) && (e.key==='e'||e.key==='E')){ e.preventDefault(); exportSelection(); } });
+  window.addEventListener('keydown', e=>{ if (e.code==='Space'){ e.preventDefault(); play(); } if ((e.ctrlKey||e.metaKey) && (e.key==='e'||e.key==='E')){ e.preventDefault(); exportSelectionWav(); } });
 
+  // Init
   enableUI(false); resize();
 })();
 </script>
