@@ -1,144 +1,636 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>本地音频剪裁｜分段加载 + 热力条 + 可调阈值</title>
-  <style>
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC",sans-serif;background:#0b1020;color:#e5e7eb}
-    .wrap{max-width:1100px;margin:24px auto;padding:16px}
-    .card{background:rgba(255,255,255,0.05);border-radius:16px;padding:16px}
-    .head{display:flex;justify-content:space-between;align-items:center;gap:12px}
-    .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;align-items:center}
-    .btn{padding:8px 12px;border:none;border-radius:8px;cursor:pointer;color:#fff;background:#374151}
-    .btn:disabled{opacity:.5;cursor:not-allowed}
-    input[type=number]{width:90px;padding:6px;border-radius:6px;border:1px solid #334155;background:#0b1020;color:#e5e7eb}
-    canvas{display:block;width:100%;height:180px;background:#111827;border-radius:8px;margin-top:12px}
-    #heatmap{height:28px;margin-top:10px;background:#0f172a;border-radius:6px}
-    .sel{position:absolute;top:0;height:100%;background:rgba(34,197,94,.2);outline:1px dashed #22c55e;pointer-events:none}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Base64 → MP3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0c0f;
+    --surface: #14141a;
+    --border: #2a2a38;
+    --border-active: #5a5aff;
+    --accent: #5a5aff;
+    --accent2: #ff5a8a;
+    --text: #e8e8f0;
+    --muted: #6868a0;
+    --success: #3ddc84;
+    --error: #ff4f6e;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Noto Sans SC', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 60px;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.25;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow orbs */
+  body::after {
+    content: '';
+    position: fixed;
+    width: 500px;
+    height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(90,90,255,0.08) 0%, transparent 70%);
+    top: -100px;
+    left: -100px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 680px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 36px;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 4px 10px;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(28px, 6vw, 48px);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -1px;
+  }
+
+  h1 .arrow {
+    color: var(--accent2);
+    display: inline-block;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .subtitle {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 300;
+    letter-spacing: 1px;
+  }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 28px;
+    margin-bottom: 16px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .card:nth-child(2) { animation-delay: 0.1s; }
+  .card:nth-child(3) { animation-delay: 0.2s; }
+
+  .card-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Textarea */
+  textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.7;
+    padding: 14px;
+    resize: vertical;
+    min-height: 160px;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+    word-break: break-all;
+  }
+
+  textarea::placeholder { color: var(--muted); opacity: 0.6; }
+
+  textarea:focus {
+    border-color: var(--border-active);
+    box-shadow: 0 0 0 1px var(--border-active) inset, 0 0 20px rgba(90,90,255,0.05);
+  }
+
+  /* Filename */
+  .filename-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .input-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  .input-wrap input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 12px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+    border-radius: 0;
+  }
+
+  .input-wrap input:focus { border-color: var(--border-active); }
+
+  .ext-badge {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent2);
+    letter-spacing: 1px;
+  }
+
+  /* Buttons */
+  .btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 13px 22px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    -webkit-appearance: none;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .btn-primary:hover, .btn-primary:active {
+    background: #7a7aff;
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+
+  /* Action row */
+  .action-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .btn-action {
+    flex: 1;
+    min-width: 140px;
+    padding: 16px;
+    font-size: 13px;
+  }
+
+  /* Status */
+  .status {
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    line-height: 1.6;
+    border-left: 3px solid;
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .status.show { display: block; }
+  .status.ok { border-color: var(--success); color: var(--success); background: rgba(61,220,132,0.05); }
+  .status.err { border-color: var(--error); color: var(--error); background: rgba(255,79,110,0.05); }
+  .status.info { border-color: var(--accent); color: var(--accent); background: rgba(90,90,255,0.05); }
+
+  /* iOS notice */
+  .ios-notice {
+    background: rgba(90,90,255,0.07);
+    border: 1px solid rgba(90,90,255,0.25);
+    padding: 16px;
+    margin-bottom: 16px;
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .ios-notice.show { display: block; }
+
+  .ios-notice-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .ios-notice p {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .ios-notice strong { color: var(--text); }
+
+  /* Audio player */
+  .audio-wrap {
+    margin-top: 16px;
+    display: none;
+  }
+
+  .audio-wrap.show { display: block; }
+
+  audio {
+    width: 100%;
+    height: 48px;
+    outline: none;
+    border-radius: 0;
+    filter: invert(1) hue-rotate(180deg);
+  }
+
+  /* Progress bar */
+  .progress-bar-wrap {
+    height: 2px;
+    background: var(--border);
+    margin-top: 16px;
+    overflow: hidden;
+    display: none;
+  }
+
+  .progress-bar-wrap.show { display: block; }
+
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--border);
+    letter-spacing: 2px;
+    margin-top: 36px;
+    animation: fadeIn 1s ease both 0.5s;
+  }
+
+  /* Animations */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(4px); }
+  }
+
+  /* Mobile */
+  @media (max-width: 480px) {
+    .card { padding: 20px; }
+    .filename-row { flex-direction: column; }
+    .btn-action { min-width: 100%; }
+  }
+</style>
 </head>
 <body>
-  <div class="wrap card">
-    <div class="head">
-      <h1>本地音频剪裁｜分段加载</h1>
-      <input id="fileInput" type="file" accept="audio/*,.mp3,.m4a" />
-    </div>
-    <!-- 全局热力条（点击跳转） -->
-    <canvas id="heatmap"></canvas>
 
-    <div class="controls">
-      <button id="playBtn" class="btn" disabled>▶️ 播放/暂停</button>
-      <button id="exportWavBtn" class="btn" disabled>⬇️ 导出 WAV</button>
-      <button id="exportMp3Btn" class="btn" disabled>⬇️ 导出 MP3</button>
-      <label style="display:inline-flex;align-items:center;gap:6px">窗口(s)
-        <input id="winSec" type="number" min="10" max="1800" step="10" value="600">
-      </label>
-      <label style="display:inline-flex;align-items:center;gap:6px">阈值
-        <input id="thInput" type="number" min="0" max="0.2" step="0.005" value="0.08">
-      </label>
-      <label style="display:inline-flex;align-items:center;gap:6px">最短(s)
-        <input id="minDurInput" type="number" min="5" max="60" step="5" value="15">
-      </label>
-      <button id="prevBtn" class="btn" disabled>⏮️ 上一窗口</button>
-      <button id="nextBtn" class="btn" disabled>⏭️ 下一窗口</button>
-      <button id="prevTalkBtn" class="btn" disabled>🔉 上一段对话</button>
-      <button id="nextTalkBtn" class="btn" disabled>🔊 下一段对话</button>
-    </div>
+<div class="container">
 
-    <div style="position:relative">
-      <canvas id="wave"></canvas>
-      <div id="selection" class="sel"></div>
-    </div>
-
-    <div id="info" style="margin-top:8px;color:#cbd5e1"></div>
+  <div class="header">
+    <div class="badge">工具 / TOOL</div>
+    <h1>BASE64 <span class="arrow">→</span> MP3</h1>
+    <p class="subtitle">粘贴 Base64 编码，转换并下载音频文件</p>
   </div>
+
+  <!-- iOS Notice (shown on iOS) -->
+  <div class="ios-notice" id="iosNotice">
+    <div class="ios-notice-title">📱 iOS 使用说明</div>
+    <p>iOS Safari 限制文件直接下载。转换后请点击 <strong>「在新标签页打开」</strong>，然后点击 Safari 底部的 <strong>分享按钮 →「存储到「文件」」</strong> 即可保存 MP3。</p>
+  </div>
+
+  <!-- Step 1: Input -->
+  <div class="card">
+    <div class="card-label">01 · 粘贴 Base64 数据</div>
+    <textarea
+      id="b64input"
+      placeholder="粘贴 Base64 字符串（支持带或不带前缀）&#10;例：data:audio/mpeg;base64,//uQxAAAc... 或直接 //uQxAAAc..."
+      spellcheck="false"
+      autocomplete="off"
+    ></textarea>
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-secondary" onclick="clearInput()">清空</button>
+      <button class="btn btn-secondary" onclick="pasteFromClipboard()">从剪贴板粘贴</button>
+      <span id="charCount" style="margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--muted); align-self:center;"></span>
+    </div>
+  </div>
+
+  <!-- Step 2: Options -->
+  <div class="card">
+    <div class="card-label">02 · 文件名设置</div>
+    <div class="filename-row">
+      <div class="input-wrap">
+        <input type="text" id="filename" value="audio" placeholder="文件名（不含扩展名）">
+        <span class="ext-badge">.mp3</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Actions -->
+  <div class="card">
+    <div class="card-label">03 · 转换与下载</div>
+
+    <div class="progress-bar-wrap" id="progressWrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div class="status" id="statusBox"></div>
+
+    <div class="audio-wrap" id="audioWrap">
+      <audio id="audioPlayer" controls></audio>
+    </div>
+
+    <div class="action-row">
+      <button class="btn btn-primary btn-action" onclick="convert()">▶ 转换 + 播放</button>
+      <button class="btn btn-primary btn-action" id="downloadBtn" onclick="doDownload()" style="background:var(--accent2); display:none;">↓ 下载 MP3</button>
+      <button class="btn btn-secondary btn-action" id="openBtn" onclick="openInTab()" style="display:none;">⬡ 在新标签页打开</button>
+    </div>
+  </div>
+
+  <div class="footer">BASE64 → MP3 · 本地处理 · 无上传 · NO DATA SENT</div>
+
+</div>
+
 <script>
-const fileInput=document.getElementById('fileInput');
-const waveCanvas=document.getElementById('wave');
-const heatmapCanvas=document.getElementById('heatmap');
-const ctx=waveCanvas.getContext('2d');
-const playBtn=document.getElementById('playBtn');
-const exportWavBtn=document.getElementById('exportWavBtn');
-const exportMp3Btn=document.getElementById('exportMp3Btn');
-const prevBtn=document.getElementById('prevBtn');
-const nextBtn=document.getElementById('nextBtn');
-const prevTalkBtn=document.getElementById('prevTalkBtn');
-const nextTalkBtn=document.getElementById('nextTalkBtn');
-const winSecInput=document.getElementById('winSec');
-const thInput=document.getElementById('thInput');
-const minDurInput=document.getElementById('minDurInput');
-const selEl=document.getElementById('selection');
-const info=document.getElementById('info');
+  // Detect iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-let audioCtx, buffer, srcNode, peaks=[];
-let selection={active:false,start:0,end:0};
-let viewOffsetSec=0; // 当前窗口起点（秒）
-let winSec=600;      // 窗口长度（秒）
-let loudness=[], loudKnown=[]; // 5s/格
+  if (isIOS) {
+    document.getElementById('iosNotice').classList.add('show');
+  }
 
-function fmt(t){const m=Math.floor(t/60), s=Math.floor(t%60);return `${m}:${String(s).padStart(2,'0')}`}
-function resize(){
-  waveCanvas.width=waveCanvas.clientWidth*devicePixelRatio;
-  waveCanvas.height=180*devicePixelRatio;
-  heatmapCanvas.width=heatmapCanvas.clientWidth*devicePixelRatio;
-  heatmapCanvas.height=28*devicePixelRatio;
-  drawHeatmap(); draw();
-}
-window.addEventListener('resize',resize);resize();
+  let currentDataUrl = null;
+  let currentObjectUrl = null;
 
-function draw(){
-  ctx.clearRect(0,0,waveCanvas.width,waveCanvas.height);
-  if(!peaks.length)return;
-  const mid=waveCanvas.height/2; ctx.strokeStyle='#60a5fa'; ctx.beginPath();
-  for(let i=0;i<peaks.length;i++){const p=peaks[i]; const x=i; const y1=mid+p[0]*mid; const y2=mid+p[1]*mid; ctx.moveTo(x,y1); ctx.lineTo(x,y2);} ctx.stroke();
-  ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font=`${12*devicePixelRatio}px ui-monospace,monospace`; ctx.fillText(`${fmt(viewOffsetSec)} ~ ${fmt(viewOffsetSec+Number(waveCanvas.dataset.dur||0))}`,16,16);
-  if(selection.active){const dur=Number(waveCanvas.dataset.dur||0); const x1=(Math.max(0,selection.start-viewOffsetSec)/dur)*waveCanvas.width/devicePixelRatio; const x2=(Math.max(0,selection.end-viewOffsetSec)/dur)*waveCanvas.width/devicePixelRatio; selEl.style.left=Math.min(x1,x2)+'px'; selEl.style.width=Math.abs(x2-x1)+'px';} else selEl.style.width=0;
-}
+  // Char count
+  const b64input = document.getElementById('b64input');
+  b64input.addEventListener('input', () => {
+    const len = b64input.value.trim().length;
+    const cc = document.getElementById('charCount');
+    cc.textContent = len > 0 ? `${len.toLocaleString()} chars` : '';
+  });
 
-function buildPeaks(viewDur=winSec,offset=viewOffsetSec){
-  if(!buffer)return; const sr=buffer.sampleRate; const startFrame=Math.floor(offset*sr); const endFrame=Math.floor(Math.min(buffer.duration,offset+viewDur)*sr); const step=Math.max(1, Math.floor((endFrame-startFrame)/waveCanvas.width)); const ch=buffer.getChannelData(0); peaks=[]; for(let i=0;i<waveCanvas.width;i++){const s=startFrame+i*step; let min=1,max=-1; for(let j=0;j<step;j++){const v=ch[s+j]||0; if(v<min)min=v; if(v>max)max=v;} peaks.push([min,max]);} waveCanvas.dataset.dur=viewDur; draw();}
+  function showStatus(msg, type='info') {
+    const el = document.getElementById('statusBox');
+    el.textContent = msg;
+    el.className = `status show ${type}`;
+  }
 
-async function decode(file){ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); const arr=await file.arrayBuffer(); buffer=await audioCtx.decodeAudioData(arr); }
+  function setProgress(pct) {
+    const wrap = document.getElementById('progressWrap');
+    const bar = document.getElementById('progressBar');
+    if (pct === null) {
+      wrap.classList.remove('show');
+      bar.style.width = '0%';
+    } else {
+      wrap.classList.add('show');
+      bar.style.width = pct + '%';
+    }
+  }
 
-fileInput.addEventListener('change',async e=>{
-  const f=e.target.files[0]; if(!f)return; await decode(f);
-  viewOffsetSec=0; winSec=Number(winSecInput.value)||600;
-  info.textContent=`${f.name} ｜ 总长 ${fmt(buffer.duration)}`;
-  initHeatmapArrays(); await ensureLoudnessForRange(0, Math.min(buffer.duration, winSec*2));
-  buildPeaks(winSec,viewOffsetSec);
-  playBtn.disabled=false; exportWavBtn.disabled=false; exportMp3Btn.disabled=false; prevBtn.disabled=false; nextBtn.disabled=false; prevTalkBtn.disabled=false; nextTalkBtn.disabled=false; drawHeatmap();
-});
+  function clearInput() {
+    document.getElementById('b64input').value = '';
+    document.getElementById('charCount').textContent = '';
+    document.getElementById('statusBox').className = 'status';
+    document.getElementById('audioWrap').classList.remove('show');
+    document.getElementById('downloadBtn').style.display = 'none';
+    document.getElementById('openBtn').style.display = 'none';
+    setProgress(null);
+    currentDataUrl = null;
+    if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; }
+  }
 
-function initHeatmapArrays(){ const buckets=Math.ceil(buffer.duration/5); loudness=new Array(buckets).fill(0); loudKnown=new Array(buckets).fill(false); }
-async function ensureLoudnessForRange(startSec,endSec){ const sr=buffer.sampleRate; const ch=buffer.getChannelData(0); const b0=Math.max(0,Math.floor(startSec/5)); const b1=Math.min(loudness.length-1,Math.ceil(endSec/5)); for(let bi=b0; bi<=b1; bi++){ if(loudKnown[bi]) continue; const s=Math.floor(bi*5*sr); const e=Math.min(ch.length, Math.floor((bi+1)*5*sr)); let sum=0; for(let i=s;i<e;i++){ const v=ch[i]; sum+=v*v; } loudness[bi]=Math.sqrt(sum/Math.max(1,e-s)); loudKnown[bi]=true; } }
+  async function pasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      document.getElementById('b64input').value = text;
+      b64input.dispatchEvent(new Event('input'));
+      showStatus('✓ 已从剪贴板粘贴', 'ok');
+    } catch(e) {
+      showStatus('请手动粘贴（浏览器限制剪贴板读取）', 'err');
+    }
+  }
 
-function drawHeatmap(){ const g=heatmapCanvas.getContext('2d'); g.clearRect(0,0,heatmapCanvas.width,heatmapCanvas.height); if(!buffer) return; const W=heatmapCanvas.width, H=heatmapCanvas.height; const n=loudness.length||1; for(let i=0;i<n;i++){ const x=i/n*W; const w=Math.ceil(W/n); const v=loudness[i]; const known=loudKnown[i]; const c=!known? 'rgba(148,163,184,.25)' : `hsl(${Math.max(0,200-200*Math.min(1,v/0.15))} 80% 50%)`; g.fillStyle=c; g.fillRect(x,0,w,H);} if(buffer){ const sx=(viewOffsetSec/buffer.duration)*W; const ex=((viewOffsetSec+Math.min(winSec, buffer.duration))/buffer.duration)*W; g.strokeStyle='#22c55e'; g.lineWidth=2; g.strokeRect(sx,1,Math.max(2,ex-sx),H-2);} }
+  function extractBase64(raw) {
+    raw = raw.trim();
+    // Strip data URI prefix if present
+    const match = raw.match(/^data:audio\/[^;]+;base64,(.+)$/s);
+    if (match) return match[1].trim();
+    // Also handle generic data URI
+    const match2 = raw.match(/^data:[^;]*;base64,(.+)$/s);
+    if (match2) return match2[1].trim();
+    return raw;
+  }
 
-heatmapCanvas.addEventListener('click', async (e)=>{ if(!buffer) return; const rect=heatmapCanvas.getBoundingClientRect(); const ratio=(e.clientX-rect.left)/rect.width; const t=Math.max(0, Math.min(buffer.duration-1, ratio*buffer.duration)); viewOffsetSec=Math.max(0, Math.min(buffer.duration-Math.min(winSec,buffer.duration), t - winSec/2)); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec, viewOffsetSec); drawHeatmap(); });
+  function convert() {
+    const raw = document.getElementById('b64input').value;
+    if (!raw.trim()) {
+      showStatus('⚠ 请先粘贴 Base64 数据', 'err');
+      return;
+    }
 
-prevBtn.addEventListener('click', async ()=>{ viewOffsetSec=Math.max(0,viewOffsetSec-winSec); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec,viewOffsetSec); drawHeatmap(); });
-nextBtn.addEventListener('click', async ()=>{ viewOffsetSec=Math.min(Math.max(0,buffer.duration-winSec),viewOffsetSec+winSec); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec,viewOffsetSec); drawHeatmap(); });
+    showStatus('⟳ 处理中...', 'info');
+    setProgress(30);
 
-function findTalk(startBucket, dir){ const step=dir>0?1:-1; const minDurSec=Math.max(5, Math.min(60, Number(minDurInput.value)||15)); const needBuckets=Math.ceil(minDurSec/5); const th=Math.max(0, Math.min(0.2, Number(thInput.value)||0.08)); for(let i=startBucket; i>=0 && i<loudness.length; i+=step){ let ok=true; for(let k=0;k<needBuckets;k++){ const idx=i+k*step; if(idx<0||idx>=loudness.length){ ok=false; break; } if(!loudKnown[idx]){ ok=false; break; } if(loudness[idx] < th){ ok=false; break; } } if(ok) return i; } return -1; }
+    setTimeout(() => {
+      try {
+        const b64 = extractBase64(raw);
 
-prevTalkBtn.addEventListener('click', async ()=>{ const curBucket=Math.floor(viewOffsetSec/5); // 确保邻域已计算
- await ensureLoudnessForRange(Math.max(0,(curBucket-60)*5), (curBucket+5)*5);
- const idx=findTalk(curBucket-1,-1); if(idx>=0){ viewOffsetSec=Math.max(0, idx*5); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec,viewOffsetSec); drawHeatmap(); } });
-nextTalkBtn.addEventListener('click', async ()=>{ const curBucket=Math.floor((viewOffsetSec+winSec)/5); await ensureLoudnessForRange(curBucket*5, Math.min(buffer.duration,(curBucket+60)*5)); const idx=findTalk(curBucket+1,1); if(idx>=0){ viewOffsetSec=Math.min(Math.max(0, buffer.duration-winSec), idx*5); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec,viewOffsetSec); drawHeatmap(); } });
+        // Validate base64 (basic check)
+        if (!/^[A-Za-z0-9+/=\s]+$/.test(b64)) {
+          throw new Error('检测到非法字符，请确认是有效的 Base64 字符串');
+        }
 
-winSecInput.addEventListener('change', async ()=>{ winSec=Math.max(10,Math.min(1800,Number(winSecInput.value)||600)); await ensureLoudnessForRange(viewOffsetSec, viewOffsetSec+winSec); buildPeaks(winSec,viewOffsetSec); drawHeatmap(); });
+        setProgress(60);
 
-// 播放（仅当前窗口）
-playBtn.addEventListener('click',()=>{ if(!buffer)return; if(srcNode){ try{srcNode.stop();}catch{} try{srcNode.disconnect();}catch{} srcNode=null; playBtn.textContent='▶️ 播放/暂停'; return; } if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); srcNode=audioCtx.createBufferSource(); srcNode.buffer=buffer; srcNode.connect(audioCtx.destination); srcNode.start(0, viewOffsetSec, Math.min(winSec, buffer.duration-viewOffsetSec)); playBtn.textContent='⏸️ 暂停'; srcNode.onended=()=>{ srcNode=null; playBtn.textContent='▶️ 播放/暂停'; }; });
+        // Decode
+        const binary = atob(b64.replace(/\s/g, ''));
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
 
-function getWindowData(){ const a=viewOffsetSec; const b=Math.min(buffer.duration, viewOffsetSec + (Number(waveCanvas.dataset.dur)||winSec)); const sr=buffer.sampleRate; const startFrame=Math.floor(a*sr); const endFrame=Math.floor(b*sr); const ch=buffer.getChannelData(0).subarray(startFrame,endFrame); return {channels:[ch],sampleRate:sr,start:a,end:b}; }
+        setProgress(85);
 
-function wavEncode({channels,sampleRate}){ const numFrames=channels[0].length; const buf=new ArrayBuffer(44+numFrames*2); const view=new DataView(buf); function ws(o,s){ for(let i=0;i<s.length;i++) view.setUint8(o+i,s.charCodeAt(i)); } ws(0,'RIFF'); view.setUint32(4,36+numFrames*2,true); ws(8,'WAVE'); ws(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true); view.setUint32(24,sampleRate,true); view.setUint32(28,sampleRate*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true); ws(36,'data'); view.setUint32(40,numFrames*2,true); let offset=44; for(let i=0;i<numFrames;i++){ let s=channels[0][i]; s=Math.max(-1,Math.min(1,s)); view.setInt16(offset, s<0?s*0x8000:s*0x7FFF, true); offset+=2; } return new Blob([buf],{type:'audio/wav'}); }
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
 
-exportWavBtn.addEventListener('click',()=>{ const data=getWindowData(); const blob=wavEncode(data); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`window_${fmt(data.start)}-${fmt(data.end)}.wav`; a.click(); });
+        // Revoke previous
+        if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
 
-exportMp3Btn.addEventListener('click',async()=>{ const data=getWindowData(); if(!window.lamejs){ await new Promise(res=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js'; s.onload=res; document.head.appendChild(s); }); } const enc=new lamejs.Mp3Encoder(1,data.sampleRate,128); const s16=new Int16Array(data.channels[0].length); for(let i=0;i<s16.length;i++){ let v=Math.max(-1,Math.min(1,data.channels[0][i])); s16[i]=v<0?v*0x8000:v*0x7FFF; } const block=1152,mp3=[]; for(let i=0;i<s16.length;i+=block){ const chunk=enc.encodeBuffer(s16.subarray(i,i+block)); if(chunk.length) mp3.push(chunk); } const end=enc.flush(); if(end.length) mp3.push(end); const blob=new Blob(mp3,{type:'audio/mpeg'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`window_${fmt(data.start)}-${fmt(data.end)}.mp3`; a.click(); });
+        currentObjectUrl = URL.createObjectURL(blob);
+        currentDataUrl = 'data:audio/mpeg;base64,' + b64.replace(/\s/g, '');
+
+        // Audio player
+        const player = document.getElementById('audioPlayer');
+        player.src = currentObjectUrl;
+        document.getElementById('audioWrap').classList.add('show');
+
+        setProgress(100);
+        setTimeout(() => setProgress(null), 500);
+
+        const kb = (blob.size / 1024).toFixed(1);
+        showStatus(`✓ 转换成功 · ${kb} KB · 可播放或下载`, 'ok');
+
+        document.getElementById('downloadBtn').style.display = '';
+        document.getElementById('openBtn').style.display = '';
+
+        // Auto play
+        player.play().catch(() => {});
+
+      } catch(e) {
+        setProgress(null);
+        showStatus('✗ 错误：' + e.message, 'err');
+      }
+    }, 80); // slight delay for UI feedback
+  }
+
+  function getFilename() {
+    const name = document.getElementById('filename').value.trim() || 'audio';
+    // Sanitize
+    return name.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fa5]/g, '_') + '.mp3';
+  }
+
+  function doDownload() {
+    if (!currentObjectUrl) { showStatus('请先点击「转换 + 播放」', 'err'); return; }
+
+    const filename = getFilename();
+
+    if (isIOS || isSafari) {
+      // iOS/Safari: can't reliably use blob URL download attribute
+      // Use data URI approach and open in new tab
+      openInTab();
+      showStatus('iOS: 新标签页已打开 → 点击分享 → 存储到文件', 'info');
+      return;
+    }
+
+    // Desktop download
+    const a = document.createElement('a');
+    a.href = currentObjectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showStatus(`✓ 下载已开始：${filename}`, 'ok');
+  }
+
+  function openInTab() {
+    if (!currentDataUrl) { showStatus('请先点击「转换 + 播放」', 'err'); return; }
+
+    // Open data URL in new tab — on iOS Safari this opens the audio player
+    // User can then tap Share → Save to Files
+    const win = window.open(currentDataUrl, '_blank');
+    if (!win) {
+      // Popup blocked — fallback: create link
+      const a = document.createElement('a');
+      a.href = currentDataUrl;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    if (isIOS) {
+      showStatus('iOS: 在 Safari 中点击底部分享按钮 → 「存储到「文件」」', 'info');
+    } else {
+      showStatus('✓ 已在新标签页打开', 'ok');
+    }
+  }
 </script>
 </body>
 </html>
