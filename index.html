@@ -450,11 +450,13 @@
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-  if (isIOS) {
+  const canShareFiles = !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'test.mp3', { type: 'audio/mpeg' })] }));
+
+  if (isIOS && !canShareFiles) {
     document.getElementById('iosNotice').classList.add('show');
   }
 
-  let currentDataUrl = null;
+  let currentBlob = null;
   let currentObjectUrl = null;
 
   // Char count
@@ -491,7 +493,7 @@
     document.getElementById('downloadBtn').style.display = 'none';
     document.getElementById('openBtn').style.display = 'none';
     setProgress(null);
-    currentDataUrl = null;
+    currentBlob = null;
     if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; }
   }
 
@@ -552,8 +554,8 @@
         // Revoke previous
         if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
 
+        currentBlob = blob;
         currentObjectUrl = URL.createObjectURL(blob);
-        currentDataUrl = 'data:audio/mpeg;base64,' + b64.replace(/\s/g, '');
 
         // Audio player
         const player = document.getElementById('audioPlayer');
@@ -585,51 +587,54 @@
     return name.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fa5]/g, '_') + '.mp3';
   }
 
-  function doDownload() {
-    if (!currentObjectUrl) { showStatus('请先点击「转换 + 播放」', 'err'); return; }
+  async function doDownload() {
+    if (!currentBlob) { showStatus('请先点击「转换 + 播放」', 'err'); return; }
 
     const filename = getFilename();
+    const file = new File([currentBlob], filename, { type: 'audio/mpeg' });
 
-    if (isIOS || isSafari) {
-      // iOS/Safari: can't reliably use blob URL download attribute
-      // Use data URI approach and open in new tab
-      openInTab();
-      showStatus('iOS: 新标签页已打开 → 点击分享 → 存储到文件', 'info');
+    // iOS 15+ / Android: Web Share API with file (preserves filename!)
+    if (canShareFiles) {
+      try {
+        await navigator.share({ files: [file], title: filename });
+        showStatus('✓ 分享成功，可存储到「文件」', 'ok');
+        return;
+      } catch(e) {
+        if (e.name === 'AbortError') return; // user cancelled, no error
+        // fall through to next method
+      }
+    }
+
+    // Desktop & modern browsers: blob URL + download attribute
+    if (!isIOS) {
+      const url = URL.createObjectURL(currentBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      showStatus(`✓ 下载已开始：${filename}`, 'ok');
       return;
     }
 
-    // Desktop download
-    const a = document.createElement('a');
-    a.href = currentObjectUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    showStatus(`✓ 下载已开始：${filename}`, 'ok');
+    // Old iOS fallback: open blob URL in new tab, user saves manually
+    openInTab();
   }
 
   function openInTab() {
-    if (!currentDataUrl) { showStatus('请先点击「转换 + 播放」', 'err'); return; }
-
-    // Open data URL in new tab — on iOS Safari this opens the audio player
-    // User can then tap Share → Save to Files
-    const win = window.open(currentDataUrl, '_blank');
+    if (!currentObjectUrl) { showStatus('请先点击「转换 + 播放」', 'err'); return; }
+    const win = window.open(currentObjectUrl, '_blank');
     if (!win) {
-      // Popup blocked — fallback: create link
       const a = document.createElement('a');
-      a.href = currentDataUrl;
+      a.href = currentObjectUrl;
       a.target = '_blank';
-      a.rel = 'noopener';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
     }
-
-    if (isIOS) {
-      showStatus('iOS: 在 Safari 中点击底部分享按钮 → 「存储到「文件」」', 'info');
-    } else {
-      showStatus('✓ 已在新标签页打开', 'ok');
-    }
+    showStatus('旧版 iOS: 长按页面中的音频 → 「下载链接」存储到文件', 'info');
   }
 </script>
 </body>
