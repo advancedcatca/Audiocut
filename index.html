@@ -1,25 +1,21 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Base64 → MP3</title>
+<title>WAV → MP3 Converter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+JP:wght@300;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0c0c0f;
-    --surface: #14141a;
-    --border: #2a2a38;
-    --border-active: #5a5aff;
-    --accent: #5a5aff;
-    --accent2: #ff5a8a;
-    --text: #e8e8f0;
-    --muted: #6868a0;
-    --success: #3ddc84;
-    --error: #ff4f6e;
-    --mono: 'Space Mono', monospace;
-    --sans: 'Noto Sans SC', sans-serif;
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --border: #2a2a2a;
+    --accent: #e8ff5a;
+    --accent2: #ff5a5a;
+    --text: #f0f0f0;
+    --muted: #555;
+    --radius: 4px;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -27,615 +23,646 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: var(--sans);
+    font-family: 'Noto Sans JP', sans-serif;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 24px 16px 60px;
-    position: relative;
-    overflow-x: hidden;
+    padding: 40px 20px 60px;
   }
 
-  /* Background grid */
+  /* Grid texture */
   body::before {
     content: '';
     position: fixed;
     inset: 0;
     background-image:
-      linear-gradient(var(--border) 1px, transparent 1px),
-      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      linear-gradient(rgba(232,255,90,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,255,90,0.03) 1px, transparent 1px);
     background-size: 40px 40px;
-    opacity: 0.25;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  /* Glow orbs */
-  body::after {
-    content: '';
-    position: fixed;
-    width: 500px;
-    height: 500px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(90,90,255,0.08) 0%, transparent 70%);
-    top: -100px;
-    left: -100px;
     pointer-events: none;
     z-index: 0;
   }
 
   .container {
-    width: 100%;
-    max-width: 680px;
     position: relative;
     z-index: 1;
+    width: 100%;
+    max-width: 540px;
   }
 
-  /* Header */
-  .header {
+  header {
+    margin-bottom: 48px;
     text-align: center;
-    margin-bottom: 36px;
-    animation: fadeDown 0.6s ease both;
   }
 
-  .badge {
-    display: inline-block;
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 3px;
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    padding: 4px 10px;
-    margin-bottom: 16px;
-    text-transform: uppercase;
-  }
-
-  h1 {
-    font-family: var(--mono);
-    font-size: clamp(28px, 6vw, 48px);
+  .logo-line {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(28px, 8vw, 48px);
     font-weight: 700;
-    line-height: 1.1;
     letter-spacing: -1px;
+    line-height: 1;
   }
+  .logo-line .wav { color: var(--muted); }
+  .logo-line .arrow { color: var(--accent); margin: 0 8px; }
+  .logo-line .mp3 { color: var(--text); }
 
-  h1 .arrow {
-    color: var(--accent2);
-    display: inline-block;
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  .subtitle {
+  .tagline {
     margin-top: 10px;
+    font-size: 12px;
     color: var(--muted);
-    font-size: 13px;
-    font-weight: 300;
-    letter-spacing: 1px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: 'Space Mono', monospace;
   }
 
-  /* Card */
-  .card {
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(232,255,90,0.04);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-icon {
+    font-size: 40px;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .drop-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .drop-label strong {
+    color: var(--accent);
+    display: block;
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+
+  /* File info card */
+  .file-info {
+    display: none;
     background: var(--surface);
     border: 1px solid var(--border);
-    padding: 28px;
-    margin-bottom: 16px;
-    animation: fadeUp 0.5s ease both;
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-top: 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .file-info.visible { display: flex; gap: 12px; align-items: center; }
+  .file-name {
+    flex: 1;
+    color: var(--text);
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-size { color: var(--muted); }
+
+  /* Settings */
+  .settings {
+    margin-top: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
   }
 
-  .card:nth-child(2) { animation-delay: 0.1s; }
-  .card:nth-child(3) { animation-delay: 0.2s; }
-
-  .card-label {
-    font-family: var(--mono);
+  .settings-title {
+    font-family: 'Space Mono', monospace;
     font-size: 10px;
     letter-spacing: 3px;
     color: var(--muted);
     text-transform: uppercase;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
+  }
+
+  .setting-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
+    margin-bottom: 12px;
   }
+  .setting-row:last-child { margin-bottom: 0; }
 
-  .card-label::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border);
-  }
-
-  /* Textarea */
-  textarea {
-    width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 11px;
-    line-height: 1.7;
-    padding: 14px;
-    resize: vertical;
-    min-height: 160px;
-    outline: none;
-    transition: border-color 0.2s;
-    -webkit-appearance: none;
-    word-break: break-all;
-  }
-
-  textarea::placeholder { color: var(--muted); opacity: 0.6; }
-
-  textarea:focus {
-    border-color: var(--border-active);
-    box-shadow: 0 0 0 1px var(--border-active) inset, 0 0 20px rgba(90,90,255,0.05);
-  }
-
-  /* Filename */
-  .filename-row {
-    display: flex;
-    gap: 10px;
-    align-items: stretch;
-  }
-
-  .input-wrap {
-    flex: 1;
-    position: relative;
-  }
-
-  .input-wrap input {
-    width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-family: var(--mono);
+  .setting-label {
     font-size: 13px;
-    padding: 12px 14px;
-    outline: none;
-    transition: border-color 0.2s;
-    -webkit-appearance: none;
-    border-radius: 0;
+    color: var(--text);
+    font-weight: 300;
   }
 
-  .input-wrap input:focus { border-color: var(--border-active); }
+  .setting-control select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    min-width: 100px;
+    text-align: center;
+  }
+  .setting-control select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
 
-  .ext-badge {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-family: var(--mono);
-    font-size: 10px;
+  /* Convert button */
+  .btn-convert {
+    width: 100%;
+    margin-top: 20px;
+    padding: 18px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  .btn-convert:hover { opacity: 0.9; }
+  .btn-convert:active { transform: scale(0.99); }
+  .btn-convert:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Progress */
+  .progress-wrap {
+    display: none;
+    margin-top: 20px;
+  }
+  .progress-wrap.visible { display: block; }
+
+  .progress-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .progress-bar-bg {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.1s;
+    border-radius: 2px;
+  }
+
+  /* Result */
+  .result-card {
+    display: none;
+    margin-top: 20px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+  }
+  .result-card.visible { display: block; }
+
+  .result-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .btn-download {
+    display: inline-block;
+    padding: 12px 28px;
+    background: transparent;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-decoration: none;
+    border-radius: var(--radius);
+    transition: background 0.2s, color 0.2s;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+  .btn-download:hover {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .ios-note {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 10px;
+    line-height: 1.6;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Error */
+  .error-msg {
+    display: none;
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: rgba(255,90,90,0.08);
+    border: 1px solid rgba(255,90,90,0.3);
+    border-radius: var(--radius);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
     color: var(--accent2);
+  }
+  .error-msg.visible { display: block; }
+
+  /* Reset btn */
+  .btn-reset {
+    display: none;
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .btn-reset:hover { border-color: var(--text); color: var(--text); }
+  .btn-reset.visible { display: block; }
+
+  footer {
+    position: relative;
+    z-index: 1;
+    margin-top: 48px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
     letter-spacing: 1px;
   }
 
-  /* Buttons */
-  .btn {
-    font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    padding: 13px 22px;
-    border: none;
-    cursor: pointer;
-    transition: all 0.15s;
-    -webkit-appearance: none;
-    white-space: nowrap;
-  }
-
-  .btn-primary {
-    background: var(--accent);
-    color: #fff;
-  }
-
-  .btn-primary:hover, .btn-primary:active {
-    background: #7a7aff;
-    transform: translateY(-1px);
-  }
-
-  .btn-primary:active { transform: translateY(0); }
-
-  .btn-secondary {
-    background: transparent;
-    color: var(--muted);
-    border: 1px solid var(--border);
-  }
-
-  .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
-
-  /* Action row */
-  .action-row {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-  }
-
-  .btn-action {
-    flex: 1;
-    min-width: 140px;
-    padding: 16px;
-    font-size: 13px;
-  }
-
-  /* Status */
-  .status {
-    padding: 14px 16px;
-    font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: 0.5px;
-    line-height: 1.6;
-    border-left: 3px solid;
-    display: none;
-    animation: fadeIn 0.3s ease;
-  }
-
-  .status.show { display: block; }
-  .status.ok { border-color: var(--success); color: var(--success); background: rgba(61,220,132,0.05); }
-  .status.err { border-color: var(--error); color: var(--error); background: rgba(255,79,110,0.05); }
-  .status.info { border-color: var(--accent); color: var(--accent); background: rgba(90,90,255,0.05); }
-
-  /* iOS notice */
-  .ios-notice {
-    background: rgba(90,90,255,0.07);
-    border: 1px solid rgba(90,90,255,0.25);
-    padding: 16px;
-    margin-bottom: 16px;
-    display: none;
-    animation: fadeIn 0.3s ease;
-  }
-
-  .ios-notice.show { display: block; }
-
-  .ios-notice-title {
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: 3px;
-    color: var(--accent);
-    margin-bottom: 8px;
-    text-transform: uppercase;
-  }
-
-  .ios-notice p {
-    font-size: 12px;
-    color: var(--muted);
-    line-height: 1.7;
-  }
-
-  .ios-notice strong { color: var(--text); }
-
-  /* Audio player */
-  .audio-wrap {
-    margin-top: 16px;
-    display: none;
-  }
-
-  .audio-wrap.show { display: block; }
-
-  audio {
-    width: 100%;
-    height: 48px;
-    outline: none;
-    border-radius: 0;
-    filter: invert(1) hue-rotate(180deg);
-  }
-
-  /* Progress bar */
-  .progress-bar-wrap {
-    height: 2px;
-    background: var(--border);
-    margin-top: 16px;
-    overflow: hidden;
-    display: none;
-  }
-
-  .progress-bar-wrap.show { display: block; }
-
-  .progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    width: 0%;
-    transition: width 0.3s ease;
-  }
-
-  /* Footer */
-  .footer {
-    text-align: center;
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--border);
-    letter-spacing: 2px;
-    margin-top: 36px;
-    animation: fadeIn 1s ease both 0.5s;
-  }
-
-  /* Animations */
-  @keyframes fadeDown {
-    from { opacity: 0; transform: translateY(-16px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  @keyframes pulse {
-    0%, 100% { transform: translateX(0); }
-    50% { transform: translateX(4px); }
-  }
-
-  /* Mobile */
-  @media (max-width: 480px) {
-    .card { padding: 20px; }
-    .filename-row { flex-direction: column; }
-    .btn-action { min-width: 100%; }
+  @media (max-width: 420px) {
+    body { padding: 28px 16px 48px; }
+    header { margin-bottom: 32px; }
   }
 </style>
 </head>
 <body>
 
 <div class="container">
+  <header>
+    <div class="logo-line">
+      <span class="wav">WAV</span>
+      <span class="arrow">→</span>
+      <span class="mp3">MP3</span>
+    </div>
+    <div class="tagline">本地转换 · 无需上传 · 隐私安全</div>
+  </header>
 
-  <div class="header">
-    <div class="badge">工具 / TOOL</div>
-    <h1>BASE64 <span class="arrow">→</span> MP3</h1>
-    <p class="subtitle">粘贴 Base64 编码，转换并下载音频文件</p>
-  </div>
-
-  <!-- iOS Notice (shown on iOS) -->
-  <div class="ios-notice" id="iosNotice">
-    <div class="ios-notice-title">📱 iOS 使用说明</div>
-    <p>iOS Safari 限制文件直接下载。转换后请点击 <strong>「在新标签页打开」</strong>，然后点击 Safari 底部的 <strong>分享按钮 →「存储到「文件」」</strong> 即可保存 MP3。</p>
-  </div>
-
-  <!-- Step 1: Input -->
-  <div class="card">
-    <div class="card-label">01 · 粘贴 Base64 数据</div>
-    <textarea
-      id="b64input"
-      placeholder="粘贴 Base64 字符串（支持带或不带前缀）&#10;例：data:audio/mpeg;base64,//uQxAAAc... 或直接 //uQxAAAc..."
-      spellcheck="false"
-      autocomplete="off"
-    ></textarea>
-    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-      <button class="btn btn-secondary" onclick="clearInput()">清空</button>
-      <button class="btn btn-secondary" onclick="pasteFromClipboard()">从剪贴板粘贴</button>
-      <span id="charCount" style="margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--muted); align-self:center;"></span>
+  <!-- Drop zone -->
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".wav,audio/wav,audio/wave,audio/x-wav">
+    <span class="drop-icon">🎵</span>
+    <div class="drop-label">
+      <strong>选择或拖入 WAV 文件</strong>
+      点击选择文件 · 支持拖放
     </div>
   </div>
 
-  <!-- Step 2: Options -->
-  <div class="card">
-    <div class="card-label">02 · 文件名设置</div>
-    <div class="filename-row">
-      <div class="input-wrap">
-        <input type="text" id="filename" value="audio" placeholder="文件名（不含扩展名）">
-        <span class="ext-badge">.mp3</span>
+  <!-- File info -->
+  <div class="file-info" id="fileInfo">
+    <span class="drop-icon" style="font-size:20px;margin-bottom:0">📄</span>
+    <span class="file-name" id="fileName">—</span>
+    <span class="file-size" id="fileSize">—</span>
+  </div>
+
+  <!-- Settings -->
+  <div class="settings">
+    <div class="settings-title">转换设置</div>
+    <div class="setting-row">
+      <span class="setting-label">比特率 Bitrate</span>
+      <div class="setting-control">
+        <select id="bitrateSelect">
+          <option value="64">64 kbps</option>
+          <option value="96">96 kbps</option>
+          <option value="128" selected>128 kbps</option>
+          <option value="192">192 kbps</option>
+          <option value="320">320 kbps</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">声道 Channels</span>
+      <div class="setting-control">
+        <select id="channelSelect">
+          <option value="2" selected>立体声</option>
+          <option value="1">单声道</option>
+        </select>
       </div>
     </div>
   </div>
 
-  <!-- Step 3: Actions -->
-  <div class="card">
-    <div class="card-label">03 · 转换与下载</div>
+  <!-- Convert button -->
+  <button class="btn-convert" id="btnConvert" disabled>开始转换</button>
 
-    <div class="progress-bar-wrap" id="progressWrap">
-      <div class="progress-bar" id="progressBar"></div>
+  <!-- Progress -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-label">
+      <span id="progressStatus">处理中...</span>
+      <span id="progressPct">0%</span>
     </div>
-
-    <div class="status" id="statusBox"></div>
-
-    <div class="audio-wrap" id="audioWrap">
-      <audio id="audioPlayer" controls></audio>
-    </div>
-
-    <div class="action-row">
-      <button class="btn btn-primary btn-action" onclick="convert()">▶ 转换 + 播放</button>
-      <button class="btn btn-primary btn-action" id="downloadBtn" onclick="doDownload()" style="background:var(--accent2); display:none;">↓ 下载 MP3</button>
-      <button class="btn btn-secondary btn-action" id="openBtn" onclick="openInTab()" style="display:none;">⬡ 在新标签页打开</button>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressBar"></div>
     </div>
   </div>
 
-  <div class="footer">BASE64 → MP3 · 本地处理 · 无上传 · NO DATA SENT</div>
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
 
+  <!-- Result -->
+  <div class="result-card" id="resultCard">
+    <div class="result-title">✓ 转换完成</div>
+    <div id="downloadArea"></div>
+    <div class="ios-note" id="iosNote"></div>
+  </div>
+
+  <!-- Reset -->
+  <button class="btn-reset" id="btnReset">↺ 重新转换</button>
 </div>
 
+<footer>ALL PROCESSING DONE LOCALLY · NO UPLOAD · NO DATA SENT</footer>
+
+<!-- lamejs MP3 encoder -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
 <script>
-  // Detect iOS
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+(function() {
+  const dropZone  = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const fileInfo  = document.getElementById('fileInfo');
+  const fileName  = document.getElementById('fileName');
+  const fileSize  = document.getElementById('fileSize');
+  const btnConvert= document.getElementById('btnConvert');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressBar  = document.getElementById('progressBar');
+  const progressStatus = document.getElementById('progressStatus');
+  const progressPct  = document.getElementById('progressPct');
+  const resultCard= document.getElementById('resultCard');
+  const downloadArea = document.getElementById('downloadArea');
+  const iosNote   = document.getElementById('iosNote');
+  const errorMsg  = document.getElementById('errorMsg');
+  const btnReset  = document.getElementById('btnReset');
+  const bitrateSelect = document.getElementById('bitrateSelect');
+  const channelSelect = document.getElementById('channelSelect');
 
-  const canShareFiles = !!(navigator.canShare && navigator.canShare({ files: [new File([''], 'test.mp3', { type: 'audio/mpeg' })] }));
+  let selectedFile = null;
+  let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
-  if (isIOS && !canShareFiles) {
-    document.getElementById('iosNotice').classList.add('show');
-  }
-
-  let currentBlob = null;
-  let currentObjectUrl = null;
-
-  // Char count
-  const b64input = document.getElementById('b64input');
-  b64input.addEventListener('input', () => {
-    const len = b64input.value.trim().length;
-    const cc = document.getElementById('charCount');
-    cc.textContent = len > 0 ? `${len.toLocaleString()} chars` : '';
+  // Drag & drop
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
   });
 
-  function showStatus(msg, type='info') {
-    const el = document.getElementById('statusBox');
-    el.textContent = msg;
-    el.className = `status show ${type}`;
-  }
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
 
-  function setProgress(pct) {
-    const wrap = document.getElementById('progressWrap');
-    const bar = document.getElementById('progressBar');
-    if (pct === null) {
-      wrap.classList.remove('show');
-      bar.style.width = '0%';
-    } else {
-      wrap.classList.add('show');
-      bar.style.width = pct + '%';
+  function handleFile(file) {
+    if (!file.name.toLowerCase().endsWith('.wav') &&
+        !file.type.includes('wav') && !file.type.includes('wave')) {
+      showError('请选择 WAV 格式的音频文件');
+      return;
     }
+    selectedFile = file;
+    fileName.textContent = file.name;
+    fileSize.textContent = formatBytes(file.size);
+    fileInfo.classList.add('visible');
+    btnConvert.disabled = false;
+    hideError();
+    resultCard.classList.remove('visible');
+    btnReset.classList.remove('visible');
   }
 
-  function clearInput() {
-    document.getElementById('b64input').value = '';
-    document.getElementById('charCount').textContent = '';
-    document.getElementById('statusBox').className = 'status';
-    document.getElementById('audioWrap').classList.remove('show');
-    document.getElementById('downloadBtn').style.display = 'none';
-    document.getElementById('openBtn').style.display = 'none';
-    setProgress(null);
-    currentBlob = null;
-    if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; }
-  }
+  btnConvert.addEventListener('click', convertFile);
 
-  async function pasteFromClipboard() {
+  btnReset.addEventListener('click', () => {
+    selectedFile = null;
+    fileInput.value = '';
+    fileInfo.classList.remove('visible');
+    btnConvert.disabled = true;
+    progressWrap.classList.remove('visible');
+    resultCard.classList.remove('visible');
+    btnReset.classList.remove('visible');
+    hideError();
+    setProgress(0, '处理中...');
+  });
+
+  async function convertFile() {
+    if (!selectedFile) return;
+    if (typeof lamejs === 'undefined') {
+      showError('MP3 编码器加载失败，请检查网络连接后刷新重试');
+      return;
+    }
+
+    btnConvert.disabled = true;
+    progressWrap.classList.add('visible');
+    resultCard.classList.remove('visible');
+    btnReset.classList.remove('visible');
+    hideError();
+    setProgress(0, '读取文件...');
+
     try {
-      const text = await navigator.clipboard.readText();
-      document.getElementById('b64input').value = text;
-      b64input.dispatchEvent(new Event('input'));
-      showStatus('✓ 已从剪贴板粘贴', 'ok');
-    } catch(e) {
-      showStatus('请手动粘贴（浏览器限制剪贴板读取）', 'err');
-    }
-  }
+      const arrayBuffer = await readFile(selectedFile);
+      setProgress(10, '解码音频...');
 
-  function extractBase64(raw) {
-    raw = raw.trim();
-    // Strip data URI prefix if present
-    const match = raw.match(/^data:audio\/[^;]+;base64,(.+)$/s);
-    if (match) return match[1].trim();
-    // Also handle generic data URI
-    const match2 = raw.match(/^data:[^;]*;base64,(.+)$/s);
-    if (match2) return match2[1].trim();
-    return raw;
-  }
+      // Decode audio
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioCtx();
 
-  function convert() {
-    const raw = document.getElementById('b64input').value;
-    if (!raw.trim()) {
-      showStatus('⚠ 请先粘贴 Base64 数据', 'err');
-      return;
-    }
-
-    showStatus('⟳ 处理中...', 'info');
-    setProgress(30);
-
-    setTimeout(() => {
+      let audioBuffer;
       try {
-        const b64 = extractBase64(raw);
-
-        // Validate base64 (basic check)
-        if (!/^[A-Za-z0-9+/=\s]+$/.test(b64)) {
-          throw new Error('检测到非法字符，请确认是有效的 Base64 字符串');
-        }
-
-        setProgress(60);
-
-        // Decode
-        const binary = atob(b64.replace(/\s/g, ''));
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-
-        setProgress(85);
-
-        const blob = new Blob([bytes], { type: 'audio/mpeg' });
-
-        // Revoke previous
-        if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
-
-        currentBlob = blob;
-        currentObjectUrl = URL.createObjectURL(blob);
-
-        // Audio player
-        const player = document.getElementById('audioPlayer');
-        player.src = currentObjectUrl;
-        document.getElementById('audioWrap').classList.add('show');
-
-        setProgress(100);
-        setTimeout(() => setProgress(null), 500);
-
-        const kb = (blob.size / 1024).toFixed(1);
-        showStatus(`✓ 转换成功 · ${kb} KB · 可播放或下载`, 'ok');
-
-        document.getElementById('downloadBtn').style.display = '';
-        document.getElementById('openBtn').style.display = '';
-
-        // Auto play
-        player.play().catch(() => {});
-
+        audioBuffer = await ctx.decodeAudioData(arrayBuffer);
       } catch(e) {
-        setProgress(null);
-        showStatus('✗ 错误：' + e.message, 'err');
+        throw new Error('音频解码失败，请确认文件是有效的 WAV 格式');
       }
-    }, 80); // slight delay for UI feedback
-  }
 
-  function getFilename() {
-    const name = document.getElementById('filename').value.trim() || 'audio';
-    // Sanitize
-    return name.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fa5]/g, '_') + '.mp3';
-  }
+      const numChannels = parseInt(channelSelect.value);
+      const sampleRate = audioBuffer.sampleRate;
+      const bitrate = parseInt(bitrateSelect.value);
 
-  async function doDownload() {
-    if (!currentBlob) { showStatus('请先点击「转换 + 播放」', 'err'); return; }
+      setProgress(20, '初始化编码器...');
 
-    const filename = getFilename();
-    const file = new File([currentBlob], filename, { type: 'audio/mpeg' });
+      // Get PCM data
+      const left  = audioBuffer.getChannelData(0);
+      const right = numChannels === 2
+        ? (audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : audioBuffer.getChannelData(0))
+        : null;
 
-    // iOS 15+ / Android: Web Share API with file (preserves filename!)
-    if (canShareFiles) {
-      try {
-        await navigator.share({ files: [file], title: filename });
-        showStatus('✓ 分享成功，可存储到「文件」', 'ok');
-        return;
-      } catch(e) {
-        if (e.name === 'AbortError') return; // user cancelled, no error
-        // fall through to next method
+      // Encode in chunks to keep UI responsive
+      const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, bitrate);
+      const BLOCK = 1152;
+      const mp3Data = [];
+      const total = left.length;
+
+      setProgress(25, 'MP3 编码中...');
+
+      for (let i = 0; i < total; i += BLOCK) {
+        const end = Math.min(i + BLOCK, total);
+        const leftChunk  = floatTo16BitPCM(left.subarray(i, end));
+        const rightChunk = numChannels === 2
+          ? floatTo16BitPCM(right.subarray(i, end))
+          : leftChunk;
+
+        const encoded = numChannels === 2
+          ? mp3encoder.encodeBuffer(leftChunk, rightChunk)
+          : mp3encoder.encodeBuffer(leftChunk);
+
+        if (encoded.length > 0) mp3Data.push(encoded);
+
+        // Update progress: 25% - 95%
+        if (i % (BLOCK * 50) === 0) {
+          const pct = 25 + Math.round((i / total) * 70);
+          setProgress(pct, 'MP3 编码中...');
+          await tick(); // yield to UI
+        }
       }
-    }
 
-    // Desktop & modern browsers: blob URL + download attribute
-    if (!isIOS) {
-      const url = URL.createObjectURL(currentBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
-      showStatus(`✓ 下载已开始：${filename}`, 'ok');
-      return;
-    }
+      const flushed = mp3encoder.flush();
+      if (flushed.length > 0) mp3Data.push(flushed);
 
-    // Old iOS fallback: open blob URL in new tab, user saves manually
-    openInTab();
+      setProgress(98, '生成文件...');
+      await tick();
+
+      const blob = new Blob(mp3Data, { type: 'audio/mp3' });
+      const outName = selectedFile.name.replace(/\.wav$/i, '') + '.mp3';
+      const url = URL.createObjectURL(blob);
+
+      setProgress(100, '完成！');
+
+      // Show result
+      resultCard.classList.add('visible');
+      downloadArea.innerHTML = '';
+
+      if (isIOS) {
+        // iOS Safari: open in new tab
+        const btn = document.createElement('a');
+        btn.href = url;
+        btn.target = '_blank';
+        btn.className = 'btn-download';
+        btn.textContent = '打开 MP3 文件';
+        downloadArea.appendChild(btn);
+        iosNote.textContent = `iOS 提示：点击后在新页面长按音频，选择"下载链接"保存到文件 App。文件名：${outName}`;
+      } else {
+        const btn = document.createElement('a');
+        btn.href = url;
+        btn.download = outName;
+        btn.className = 'btn-download';
+        btn.textContent = `↓ 下载 ${outName}`;
+        downloadArea.appendChild(btn);
+        iosNote.textContent = `文件大小：${formatBytes(blob.size)} · 比特率：${bitrate} kbps`;
+      }
+
+      btnReset.classList.add('visible');
+      ctx.close();
+
+    } catch (e) {
+      showError(e.message || '转换失败，请重试');
+      btnConvert.disabled = false;
+      progressWrap.classList.remove('visible');
+    }
   }
 
-  function openInTab() {
-    if (!currentObjectUrl) { showStatus('请先点击「转换 + 播放」', 'err'); return; }
-    const win = window.open(currentObjectUrl, '_blank');
-    if (!win) {
-      const a = document.createElement('a');
-      a.href = currentObjectUrl;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-    showStatus('旧版 iOS: 长按页面中的音频 → 「下载链接」存储到文件', 'info');
+  // Helpers
+  function readFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result.slice(0));
+      reader.onerror = () => reject(new Error('文件读取失败'));
+      reader.readAsArrayBuffer(file);
+    });
   }
+
+  function floatTo16BitPCM(floatArr) {
+    const out = new Int16Array(floatArr.length);
+    for (let i = 0; i < floatArr.length; i++) {
+      const s = Math.max(-1, Math.min(1, floatArr[i]));
+      out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    return out;
+  }
+
+  function tick() {
+    return new Promise(r => setTimeout(r, 0));
+  }
+
+  function setProgress(pct, status) {
+    progressBar.style.width = pct + '%';
+    progressStatus.textContent = status;
+    progressPct.textContent = pct + '%';
+  }
+
+  function showError(msg) {
+    errorMsg.textContent = '⚠ ' + msg;
+    errorMsg.classList.add('visible');
+  }
+
+  function hideError() {
+    errorMsg.classList.remove('visible');
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+})();
 </script>
 </body>
 </html>
